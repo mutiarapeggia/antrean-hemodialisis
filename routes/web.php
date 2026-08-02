@@ -1,8 +1,13 @@
 <?php
 
+use App\Http\Controllers\Admin\AppointmentController as AdminAppointmentController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\PatientController;
+use App\Http\Controllers\Admin\RescheduleRequestController as AdminRescheduleRequestController;
+use App\Http\Controllers\Api\CheckInController;
+use App\Http\Controllers\Patient\AppointmentController as PatientAppointmentController;
 use App\Http\Controllers\Patient\DashboardController as PatientDashboardController;
+use App\Http\Controllers\Patient\RescheduleRequestController as PatientRescheduleRequestController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -11,6 +16,13 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('Welcome');
 });
+
+// Kiosk Touchscreen Route (Sprint 3)
+Route::get('/kiosk', function () {
+    return Inertia::render('Kiosk/Index');
+})->name('kiosk');
+
+Route::post('/api/check-in', [CheckInController::class, 'checkIn'])->name('api.check-in.web');
 
 Route::get('/dashboard', function (Request $request) {
     $user = $request->user();
@@ -29,11 +41,26 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/patients/import-csv', [PatientController::class, 'importCsv'])->name('patients.import');
     Route::post('/patients/{patient}/toggle-status', [PatientController::class, 'toggleStatus'])->name('patients.toggle-status');
     Route::resource('patients', PatientController::class);
+
+    // Appointment Management (Sprint 2)
+    Route::post('/appointments/{appointment}/cancel', [AdminAppointmentController::class, 'cancel'])->name('appointments.cancel');
+    Route::resource('appointments', AdminAppointmentController::class);
+
+    // Reschedule Request Management (Sprint 4)
+    Route::get('/reschedule-requests', [AdminRescheduleRequestController::class, 'index'])->name('reschedule-requests.index');
+    Route::post('/reschedule-requests/{rescheduleRequest}/approve', [AdminRescheduleRequestController::class, 'approve'])->name('reschedule-requests.approve');
+    Route::post('/reschedule-requests/{rescheduleRequest}/reject', [AdminRescheduleRequestController::class, 'reject'])->name('reschedule-requests.reject');
 });
 
 // Patient Routes
 Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')->group(function () {
     Route::get('/dashboard', PatientDashboardController::class)->name('dashboard');
+
+    // Patient Appointments (Sprint 2 & 4)
+    Route::get('/appointments', [PatientAppointmentController::class, 'index'])->name('appointments.index');
+    Route::post('/appointments', [PatientAppointmentController::class, 'store'])->name('appointments.store');
+    Route::post('/appointments/{appointment}/cancel', [PatientAppointmentController::class, 'cancel'])->name('appointments.cancel');
+    Route::post('/reschedule', [PatientRescheduleRequestController::class, 'store'])->name('reschedule.store');
 });
 
 // Profile Routes

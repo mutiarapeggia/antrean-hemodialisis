@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\Appointment;
 use App\Models\Medication;
-
+use App\Models\RescheduleRequest;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,15 +21,22 @@ class DashboardController extends Controller
             return Inertia::render('Patient/Dashboard', [
                 'patient' => null,
                 'upcomingAppointments' => [],
+                'rescheduleRequests' => [],
                 'medications' => [],
                 'announcements' => [],
             ]);
         }
 
-        $upcomingAppointments = Appointment::where('patient_id', $patient->id)
+        $upcomingAppointments = Appointment::with(['latestRescheduleRequest'])
+            ->where('patient_id', $patient->id)
             ->whereDate('appointment_date', '>=', now()->format('Y-m-d'))
             ->orderBy('appointment_date', 'asc')
             ->orderBy('start_time', 'asc')
+            ->get();
+
+        $rescheduleRequests = RescheduleRequest::with(['appointment'])
+            ->where('patient_id', $patient->id)
+            ->orderBy('created_at', 'desc')
             ->get();
 
         $medications = Medication::where('patient_id', $patient->id)->get();
@@ -42,6 +49,7 @@ class DashboardController extends Controller
         return Inertia::render('Patient/Dashboard', [
             'patient' => $patient,
             'upcomingAppointments' => $upcomingAppointments,
+            'rescheduleRequests' => $rescheduleRequests,
             'medications' => $medications,
             'announcements' => $announcements,
         ]);

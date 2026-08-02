@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import { Activity, LogOut, Calendar, Pill, Bell, User as UserIcon } from 'lucide-react';
+import { Activity, LogOut, Calendar, LayoutDashboard } from 'lucide-react';
 
 export default function PatientLayout({ children, title }) {
     const { auth, flash } = usePage().props;
@@ -10,14 +10,42 @@ export default function PatientLayout({ children, title }) {
             {/* Top Navbar */}
             <header className="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-40">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
-                            <Activity className="w-6 h-6" />
+                    <div className="flex items-center space-x-6">
+                        <div className="flex items-center space-x-3">
+                            <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                                <Activity className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <span className="font-bold text-lg text-white tracking-wide block">Antrean Hemodialisis</span>
+                                <span className="text-xs text-slate-400 block -mt-1">Portal Pasien</span>
+                            </div>
                         </div>
-                        <div>
-                            <span className="font-bold text-lg text-white tracking-wide block">Antrean Hemodialisis</span>
-                            <span className="text-xs text-slate-400 block -mt-1">Portal Pasien</span>
-                        </div>
+
+                        <nav className="hidden md:flex space-x-2">
+                            <Link
+                                href={route('patient.dashboard')}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center space-x-2 ${
+                                    route().current('patient.dashboard')
+                                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                }`}
+                            >
+                                <LayoutDashboard className="w-4 h-4" />
+                                <span>Dashboard</span>
+                            </Link>
+
+                            <Link
+                                href={route('patient.appointments.index')}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center space-x-2 ${
+                                    route().current('patient.appointments.*')
+                                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                }`}
+                            >
+                                <Calendar className="w-4 h-4" />
+                                <span>Janji Temu Saya</span>
+                            </Link>
+                        </nav>
                     </div>
 
                     <div className="flex items-center space-x-4">

@@ -20,6 +20,8 @@ export default function AdminLayout({ children, title }) {
     const navigation = [
         { name: 'Dashboard', href: route('admin.dashboard'), icon: LayoutDashboard, current: route().current('admin.dashboard') },
         { name: 'Manajemen Pasien', href: route('admin.patients.index'), icon: Users, current: route().current('admin.patients.*') },
+        { name: 'Janji Temu & Shift', href: route('admin.appointments.index'), icon: Calendar, current: route().current('admin.appointments.*') },
+        { name: 'Permintaan Reschedule', href: route('admin.reschedule-requests.index'), icon: Bell, current: route().current('admin.reschedule-requests.*') },
     ];
 
     return (

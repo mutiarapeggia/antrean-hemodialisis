@@ -1,0 +1,280 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Appointment;
+use App\Models\AuditLog;
+use App\Models\CheckIn;
+use App\Models\Patient;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
+use Tests\TestCase;
+
+class CheckInTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected User $admin;
+    protected User $patientUser1;
+    protected Patient $patient1;
+    protected User $patientUser2;
+    protected Patient $patient2;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->admin = User::factory()->create([
+            'role' => 'admin',
+        ]);
+
+        $this->patientUser1 = User::factory()->create([
+            'name' => 'Pasien Pertama',
+            'role' => 'patient',
+        ]);
+
+        $this->patient1 = Patient::create([
+            'user_id' => $this->patientUser1->id,
+            'medical_record_number' => 'RM-2026-001',
+            'phone' => '081234567891',
+            'address' => 'Jakarta',
+            'is_active' => true,
+        ]);
+
+        $this->patientUser2 = User::factory()->create([
+            'name' => 'Pasien Kedua',
+            'role' => 'patient',
+        ]);
+
+        $this->patient2 = Patient::create([
+            'user_id' => $this->patientUser2->id,
+            'medical_record_number' => 'RM-2026-002',
+            'phone' => '081234567892',
+            'address' => 'Jakarta',
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_kiosk_page_can_be_rendered(): void
+    {
+        $response = $this->get(route('kiosk'));
+        $response->assertStatus(200);
+    }
+
+    public function test_on_time_check_in_within_15_minutes_success(): void
+    {
+        $today = now()->format('Y-m-d');
+        $shift = 'pagi';
+        $bed = '1';
+
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, $shift, $bed);
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'admin_id' => $this->admin->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => $shift,
+            'bed_number' => $bed,
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token,
+        ]);
+
+        // Arrival at 07:10:00 (<= 07:15:00 cutoff)
+        $arrivalTime = "{$today} 07:10:00";
+
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => $arrivalTime,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'status' => 'success',
+            'patient_name' => 'Pasien Pertama',
+            'medical_record_number' => 'RM-2026-001',
+        ]);
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => Appointment::STATUS_CHECKED_IN,
+        ]);
+
+        $this->assertDatabaseHas('check_ins', [
+            'appointment_id' => $appointment->id,
+            'status' => 'on-time',
+            'source' => 'kiosk',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->patientUser1->id,
+            'action' => 'CHECK_IN_SUCCESS',
+        ]);
+    }
+
+    public function test_late_check_in_over_15_minutes_flags_no_show(): void
+    {
+        $today = now()->format('Y-m-d');
+        $shift = 'pagi';
+        $bed = '2';
+
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, $shift, $bed);
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'admin_id' => $this->admin->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => $shift,
+            'bed_number' => $bed,
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token,
+        ]);
+
+        // Arrival at 07:20:00 (> 07:15:00 cutoff)
+        $arrivalTime = "{$today} 07:20:00";
+
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => $arrivalTime,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'status' => 'late_error',
+            'patient_name' => 'Pasien Pertama',
+        ]);
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => Appointment::STATUS_NO_SHOW,
+        ]);
+
+        $this->assertDatabaseHas('check_ins', [
+            'appointment_id' => $appointment->id,
+            'status' => 'late',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->patientUser1->id,
+            'action' => 'PATIENT_FLAGGED_NO_SHOW',
+        ]);
+    }
+
+    public function test_check_in_with_invalid_qr_token_fails(): void
+    {
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => 'INVALID_DUMMY_TOKEN_123',
+        ]);
+
+        $response->assertStatus(404);
+        $response->assertJson([
+            'status' => 'invalid_token',
+        ]);
+    }
+
+    public function test_duplicate_check_in_rejected(): void
+    {
+        $today = now()->format('Y-m-d');
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, 'pagi', '3');
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '3',
+            'status' => Appointment::STATUS_CHECKED_IN, // Already checked in
+            'qr_token' => $token,
+        ]);
+
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => "{$today} 07:10:00",
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJson([
+            'status' => 'already_checked_in',
+        ]);
+    }
+
+    public function test_artisan_command_process_no_shows(): void
+    {
+        $testDate = '2026-07-30';
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $testDate, 'pagi', '4');
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'appointment_date' => $testDate,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '4',
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token,
+        ]);
+
+        // Run artisan command for date
+        $exitCode = Artisan::call('app:process-no-shows', ['--date' => $testDate]);
+        $this->assertEquals(0, $exitCode);
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => Appointment::STATUS_NO_SHOW,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'AUTOMATIC_NO_SHOW_PROCESSED',
+        ]);
+    }
+
+    public function test_no_show_triggers_promotion_notification_to_next_patient(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // First patient late
+        $token1 = Appointment::generateHmacQrToken($this->patient1->id, $today, 'pagi', '5');
+        $app1 = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '5',
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token1,
+        ]);
+
+        // Second patient waiting
+        $token2 = Appointment::generateHmacQrToken($this->patient2->id, $today, 'pagi', '6');
+        $app2 = Appointment::create([
+            'patient_id' => $this->patient2->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '6',
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token2,
+        ]);
+
+        // Patient 1 check-in late (> 15 minutes)
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token1,
+            'simulated_at' => "{$today} 07:25:00",
+        ]);
+
+        $response->assertStatus(422);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $this->patientUser2->id,
+            'action' => 'PATIENT_PROMOTED_AUTO',
+        ]);
+    }
+}
