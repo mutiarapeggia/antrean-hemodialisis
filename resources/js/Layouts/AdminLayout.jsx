@@ -10,7 +10,9 @@ import {
     LogOut, 
     Menu, 
     X,
-    Activity
+    Activity,
+    UserCheck,
+    CheckSquare
 } from 'lucide-react';
 
 export default function AdminLayout({ children, title }) {
@@ -20,6 +22,8 @@ export default function AdminLayout({ children, title }) {
     const navigation = [
         { name: 'Dashboard', href: route('admin.dashboard'), icon: LayoutDashboard, current: route().current('admin.dashboard') },
         { name: 'Monitor Antrean', href: route('admin.queue.index'), icon: QrCode, current: route().current('admin.queue.*') },
+        { name: 'Approval Pasien', href: route('admin.patient-approvals.index'), icon: UserCheck, current: route().current('admin.patient-approvals.*') },
+        { name: 'Approval Janji Temu', href: route('admin.appointment-approvals.index'), icon: CheckSquare, current: route().current('admin.appointment-approvals.*') },
         { name: 'Manajemen Pasien', href: route('admin.patients.index'), icon: Users, current: route().current('admin.patients.*') },
         { name: 'Janji Temu & Shift', href: route('admin.appointments.index'), icon: Calendar, current: route().current('admin.appointments.*') },
         { name: 'Permintaan Reschedule', href: route('admin.reschedule-requests.index'), icon: Bell, current: route().current('admin.reschedule-requests.*') },
@@ -28,39 +32,39 @@ export default function AdminLayout({ children, title }) {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 font-sans antialiased flex">
+        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex">
             {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div 
-                    className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 lg:hidden"
+                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
 
             {/* Sidebar */}
             <aside className={`
-                fixed top-0 bottom-0 left-0 z-50 w-64 bg-slate-900 border-r border-slate-800 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static
+                fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-slate-200 shadow-sm transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static
                 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-900/50">
+                <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 bg-white">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                        <div className="p-2 bg-blue-100 text-blue-700 rounded-xl border border-blue-200">
                             <Activity className="w-6 h-6" />
                         </div>
-                        <span className="font-bold text-lg text-white tracking-wide">HemoQueue</span>
+                        <span className="font-bold text-lg text-slate-900 tracking-wide">HemoQueue</span>
                     </div>
                     <button 
                         onClick={() => setSidebarOpen(false)}
-                        className="lg:hidden text-slate-400 hover:text-white p-1"
+                        className="lg:hidden text-slate-500 hover:text-slate-900 p-1"
                     >
                         <X className="w-6 h-6" />
                     </button>
                 </div>
 
                 <div className="p-4">
-                    <div className="px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-4">
-                        <p className="text-xs text-blue-400 font-semibold uppercase tracking-wider">Portal Staf Admin</p>
-                        <p className="text-sm font-medium text-slate-200 truncate">{auth.user?.name}</p>
+                    <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl mb-4">
+                        <p className="text-xs text-blue-700 font-semibold uppercase tracking-wider">Portal Staf Admin</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{auth.user?.name}</p>
                     </div>
 
                     <nav className="space-y-1">
@@ -73,8 +77,8 @@ export default function AdminLayout({ children, title }) {
                                     className={`
                                         flex items-center space-x-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200
                                         ${item.current 
-                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-semibold' 
-                                            : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'}
+                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20 font-semibold' 
+                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
                                     `}
                                 >
                                     <Icon className="w-5 h-5" />
@@ -85,12 +89,12 @@ export default function AdminLayout({ children, title }) {
                     </nav>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800 bg-slate-900/80">
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200 bg-white">
                     <Link
                         href={route('logout')}
                         method="post"
                         as="button"
-                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
+                        className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                     >
                         <LogOut className="w-5 h-5" />
                         <span>Keluar Portal</span>
@@ -101,19 +105,19 @@ export default function AdminLayout({ children, title }) {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
-                <header className="h-16 bg-slate-900/80 backdrop-blur border-b border-slate-800 flex items-center justify-between px-6 sticky top-0 z-30">
+                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-30 shadow-xs">
                     <div className="flex items-center space-x-4">
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="lg:hidden p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                            className="lg:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
                         >
                             <Menu className="w-6 h-6" />
                         </button>
-                        <h1 className="text-xl font-bold text-slate-100">{title}</h1>
+                        <h1 className="text-xl font-bold text-slate-800">{title}</h1>
                     </div>
 
                     <div className="flex items-center space-x-4">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             ● System Online
                         </span>
                     </div>
@@ -122,12 +126,12 @@ export default function AdminLayout({ children, title }) {
                 {/* Notifications & Flash Messages */}
                 <div className="px-6 pt-4">
                     {flash?.success && (
-                        <div className="mb-4 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-sm font-medium flex items-center justify-between shadow-sm">
+                        <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-medium flex items-center justify-between shadow-xs">
                             <span>{flash.success}</span>
                         </div>
                     )}
                     {flash?.error && (
-                        <div className="mb-4 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl text-sm font-medium flex items-center justify-between shadow-sm">
+                        <div className="mb-4 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-sm font-medium flex items-center justify-between shadow-xs">
                             <span>{flash.error}</span>
                         </div>
                     )}

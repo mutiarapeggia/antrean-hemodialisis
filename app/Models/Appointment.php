@@ -25,6 +25,8 @@ class Appointment extends Model
         'is_recurring',
         'emergency_override',
         'cancellation_reason',
+        'approval_status',
+        'approved_by',
     ];
 
     protected $casts = [
@@ -67,6 +69,11 @@ class Appointment extends Model
     public function admin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'admin_id');
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function checkIn(): HasOne

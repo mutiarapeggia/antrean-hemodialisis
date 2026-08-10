@@ -18,6 +18,10 @@ class Patient extends Model
         'address',
         'medical_conditions',
         'is_active',
+        'approval_status',
+        'rejection_reason',
+        'notification_preference',
+        'whatsapp_number',
     ];
 
     protected $casts = [

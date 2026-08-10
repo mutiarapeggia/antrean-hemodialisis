@@ -62,6 +62,17 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/reschedule-requests/{rescheduleRequest}/approve', [AdminRescheduleRequestController::class, 'approve'])->name('reschedule-requests.approve');
     Route::post('/reschedule-requests/{rescheduleRequest}/reject', [AdminRescheduleRequestController::class, 'reject'])->name('reschedule-requests.reject');
 
+    // Patient Approvals (Sprint 6)
+    Route::get('/patient-approvals', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'index'])->name('patient-approvals.index');
+    Route::post('/patient-approvals/{patient}/approve', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'approve'])->name('patient-approvals.approve');
+    Route::post('/patient-approvals/{patient}/reject', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'reject'])->name('patient-approvals.reject');
+
+    // Appointment Approvals & Emergency Override (Sprint 6)
+    Route::get('/appointment-approvals', [\App\Http\Controllers\Admin\AppointmentApprovalController::class, 'index'])->name('appointment-approvals.index');
+    Route::post('/appointment-approvals/{appointment}/approve', [\App\Http\Controllers\Admin\AppointmentApprovalController::class, 'approve'])->name('appointment-approvals.approve');
+    Route::post('/appointment-approvals/{appointment}/reject', [\App\Http\Controllers\Admin\AppointmentApprovalController::class, 'reject'])->name('appointment-approvals.reject');
+    Route::post('/appointment-approvals/emergency-override', [\App\Http\Controllers\Admin\AppointmentApprovalController::class, 'emergencyOverride'])->name('appointment-approvals.emergency-override');
+
     // Announcements Management (Sprint 5)
     Route::post('/announcements/{announcement}/toggle-status', [AdminAnnouncementController::class, 'toggleStatus'])->name('announcements.toggle-status');
     Route::resource('announcements', AdminAnnouncementController::class)->except(['create', 'edit', 'show']);
@@ -82,6 +93,10 @@ Route::middleware(['auth', 'role:patient'])->prefix('patient')->name('patient.')
 
     // Clinic Announcements Feed (Sprint 5)
     Route::get('/announcements', [PatientAnnouncementController::class, 'index'])->name('announcements.index');
+
+    // Interactive Notifications & Preferences (Sprint 6)
+    Route::get('/notifications', [\App\Http\Controllers\Patient\NotificationPreferenceController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/preferences', [\App\Http\Controllers\Patient\NotificationPreferenceController::class, 'update'])->name('notifications.update');
 });
 
 // Profile Routes

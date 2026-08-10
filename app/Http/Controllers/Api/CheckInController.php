@@ -31,9 +31,10 @@ class CheckInController extends Controller
             $now = !empty($simulatedAt) ? Carbon::parse($simulatedAt) : now();
             $todayStr = $now->format('Y-m-d');
 
-            // Find appointment by exact qr_token
+            // Find appointment by exact qr_token with pessimistic locking for race condition prevention
             $appointment = Appointment::with(['patient.user'])
                 ->where('qr_token', $qrToken)
+                ->lockForUpdate()
                 ->first();
 
             // Fallback: search candidate appointments for today and match HMAC token
