@@ -22,4 +22,11 @@ class Medication extends Model
     {
         return $this->belongsTo(Patient::class);
     }
+
+    public function appointments(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Appointment::class, 'appointment_medications')
+            ->withPivot(['dosage_given', 'notes'])
+            ->withTimestamps();
+    }
 }

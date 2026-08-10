@@ -45,6 +45,17 @@ export default function PatientLayout({ children, title }) {
                                 <Calendar className="w-4 h-4" />
                                 <span>Janji Temu Saya</span>
                             </Link>
+
+                            <Link
+                                href={route('patient.announcements.index')}
+                                className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center space-x-2 ${
+                                    route().current('patient.announcements.*')
+                                        ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                }`}
+                            >
+                                <span>Pengumuman Klinik</span>
+                            </Link>
                         </nav>
                     </div>
 
