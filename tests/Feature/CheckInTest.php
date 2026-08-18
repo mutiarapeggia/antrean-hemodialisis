@@ -173,7 +173,7 @@ class CheckInTest extends TestCase
 
         $response->assertStatus(404);
         $response->assertJson([
-            'status' => 'invalid_token',
+            'status' => 'not_found',
         ]);
     }
 

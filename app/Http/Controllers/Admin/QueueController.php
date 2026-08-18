@@ -19,6 +19,34 @@ use Inertia\Response;
 class QueueController extends Controller
 {
     /**
+     * Public TV Display Monitor (/monitor)
+     */
+    public function monitorDisplay(Request $request): Response
+    {
+        $todayDate = Carbon::today()->toDateString();
+
+        $appointments = Appointment::with(['patient.user', 'checkIn'])
+            ->whereDate('appointment_date', $todayDate)
+            ->orderBy('shift', 'asc')
+            ->orderBy('bed_number', 'asc')
+            ->get();
+
+        $stats = [
+            'total' => $appointments->count(),
+            'checked_in' => $appointments->where('status', Appointment::STATUS_CHECKED_IN)->count(),
+            'in_progress' => $appointments->where('status', Appointment::STATUS_IN_PROGRESS)->count(),
+            'scheduled' => $appointments->where('status', Appointment::STATUS_SCHEDULED)->count(),
+            'completed' => $appointments->where('status', Appointment::STATUS_COMPLETED)->count(),
+        ];
+
+        return Inertia::render('Monitor/Index', [
+            'appointments' => $appointments,
+            'stats' => $stats,
+            'todayDate' => $todayDate,
+        ]);
+    }
+
+    /**
      * Real-time Queue Monitor & Audit Logs Index
      */
     public function index(Request $request): Response

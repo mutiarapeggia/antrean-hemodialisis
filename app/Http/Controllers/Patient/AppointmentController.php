@@ -25,8 +25,8 @@ class AppointmentController extends Controller
             ->orderBy('appointment_date', 'desc')
             ->orderBy('start_time', 'asc')
             ->get()
-            ->map(function ($app) {
-                $app->qr_svg = QrCodeService::generateSvg($app->qr_token, 180);
+            ->map(function ($app) use ($patient) {
+                $app->qr_svg = QrCodeService::generateSvg($patient->medical_record_number, 180);
                 return $app;
             });
 
@@ -90,7 +90,8 @@ class AppointmentController extends Controller
             'end_time' => $shiftTimes['end_time'],
             'shift' => $shift,
             'bed_number' => $bedNumber,
-            'status' => Appointment::STATUS_SCHEDULED,
+            'status' => 'pending_approval',
+            'approval_status' => 'pending_approval',
             'qr_token' => $qrToken,
             'is_recurring' => false,
             'emergency_override' => false,

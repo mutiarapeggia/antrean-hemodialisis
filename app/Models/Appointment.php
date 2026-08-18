@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Appointment extends Model
 {
@@ -57,8 +58,14 @@ class Appointment extends Model
 
     public static function generateHmacQrToken($patientId, $date, $shift, $bedNumber = null): string
     {
-        $payload = "APP-PATIENT-{$patientId}-DATE-{$date}-SHIFT-{$shift}-BED-" . ($bedNumber ?? 'default');
-        return hash_hmac('sha256', $payload, config('app.key', 'secret-key'));
+        do {
+            $microtime = microtime(true);
+            $randomStr = Str::random(10);
+            $payload = "APP-PATIENT-{$patientId}-DATE-{$date}-SHIFT-{$shift}-BED-" . ($bedNumber ?? 'default') . "-TIME-{$microtime}-RAND-{$randomStr}";
+            $token = hash_hmac('sha256', $payload, config('app.key', 'secret-key'));
+        } while (self::where('qr_token', $token)->exists());
+
+        return $token;
     }
 
     public function patient(): BelongsTo

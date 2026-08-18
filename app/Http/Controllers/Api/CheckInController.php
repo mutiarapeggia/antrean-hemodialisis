@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\CheckIn;
+use App\Models\Patient;
 use App\Notifications\NextPatientPromotionNotification;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -17,12 +18,17 @@ class CheckInController extends Controller
     public function checkIn(Request $request): JsonResponse
     {
         try {
-            $qrToken = trim($request->input('qr_token', ''));
+            // Read input RM number or QR token
+            $rawInput = trim(
+                (string) ($request->input('rm_number') ?? 
+                $request->input('medical_record_number') ?? 
+                $request->input('qr_token', ''))
+            );
 
-            if (empty($qrToken)) {
+            if (empty($rawInput)) {
                 return response()->json([
-                    'status' => 'invalid_token',
-                    'message' => 'Kode QR Token Tidak Boleh Kosong',
+                    'status' => 'not_found',
+                    'message' => 'Nomor Rekam Medis (No. RM) Tidak Boleh Kosong',
                 ], 400);
             }
 
@@ -31,37 +37,64 @@ class CheckInController extends Controller
             $now = !empty($simulatedAt) ? Carbon::parse($simulatedAt) : now();
             $todayStr = $now->format('Y-m-d');
 
-            // Find appointment by exact qr_token with pessimistic locking for race condition prevention
-            $appointment = Appointment::with(['patient.user'])
-                ->where('qr_token', $qrToken)
-                ->lockForUpdate()
+            $appointment = null;
+
+            // 1. Search by Patient Medical Record Number (No. RM) or normalized candidates
+            $cleanRmCandidates = [$rawInput];
+
+            // Extract RM-XXXX pattern via regex
+            if (preg_match('/(RM-?\d+(?:-\d+)?)/i', $rawInput, $matches)) {
+                $matched = strtoupper($matches[1]);
+                if (!str_contains($matched, 'RM-')) {
+                    $matched = str_replace('RM', 'RM-', $matched);
+                }
+                $cleanRmCandidates[] = $matched;
+            }
+
+            // If digits only e.g. "9901" -> "RM-9901"
+            if (preg_match('/^(\d+)$/', $rawInput, $matches)) {
+                $cleanRmCandidates[] = 'RM-' . $matches[1];
+                $cleanRmCandidates[] = 'RM' . $matches[1];
+            }
+
+            // If "RM9901" -> "RM-9901"
+            if (preg_match('/^RM(\d+)$/i', $rawInput, $matches)) {
+                $cleanRmCandidates[] = 'RM-' . $matches[1];
+            }
+
+            $cleanRmCandidates = array_values(array_unique($cleanRmCandidates));
+
+            $patient = Patient::whereIn('medical_record_number', $cleanRmCandidates)
+                ->orWhere(function ($query) use ($rawInput) {
+                    $query->where('medical_record_number', 'LIKE', '%' . $rawInput . '%');
+                })
                 ->first();
 
-            // Fallback: search candidate appointments for today and match HMAC token
-            if (!$appointment) {
-                $candidates = Appointment::with(['patient.user'])
+            if ($patient) {
+                $appointment = Appointment::with(['patient.user'])
+                    ->where('patient_id', $patient->id)
                     ->whereDate('appointment_date', $todayStr)
-                    ->get();
+                    ->whereIn('status', [
+                        Appointment::STATUS_SCHEDULED,
+                        Appointment::STATUS_CHECKED_IN,
+                        Appointment::STATUS_COMPLETED,
+                    ])
+                    ->lockForUpdate()
+                    ->first();
+            }
 
-                foreach ($candidates as $cand) {
-                    $expected = Appointment::generateHmacQrToken(
-                        $cand->patient_id,
-                        $cand->appointment_date->format('Y-m-d'),
-                        $cand->shift,
-                        $cand->bed_number
-                    );
-
-                    if (hash_equals($expected, $qrToken)) {
-                        $appointment = $cand;
-                        break;
-                    }
-                }
+            // 2. Fallback: Search by exact qr_token with pessimistic locking
+            if (!$appointment) {
+                $appointment = Appointment::with(['patient.user'])
+                    ->where('qr_token', $rawInput)
+                    ->lockForUpdate()
+                    ->first();
             }
 
             if (!$appointment) {
                 return response()->json([
-                    'status' => 'invalid_token',
-                    'message' => 'Kode QR Token Tidak Ditemukan / Tidak Valid',
+                    'status' => 'not_found',
+                    'message' => 'Tidak ada janji temu terdaftar untuk No. RM ini pada hari ini.',
                 ], 404);
             }
 
@@ -85,7 +118,7 @@ class CheckInController extends Controller
             if ($appointment->status === Appointment::STATUS_CHECKED_IN || $appointment->status === Appointment::STATUS_COMPLETED) {
                 return response()->json([
                     'status' => 'already_checked_in',
-                    'message' => 'Token Kode QR Ini Sudah Pernah Dipakai Check-In!',
+                    'message' => 'Pasien Dengan No. RM Ini Sudah Pernah Check-In!',
                     'patient_name' => $patientName,
                     'medical_record_number' => $rm,
                     'bed_number' => $bedStr,
@@ -119,7 +152,7 @@ class CheckInController extends Controller
                 AuditLog::create([
                     'user_id' => $userId,
                     'action' => 'CHECK_IN_SUCCESS',
-                    'description' => "Patient Checked In via Kiosk: {$patientName} ({$rm}) at {$now->format('H:i:s')} WIB for Shift {$appointment->shift}.",
+                    'description' => "Patient Checked In via Kiosk (RM: {$rm}): {$patientName} at {$now->format('H:i:s')} WIB for Shift {$appointment->shift}.",
                     'ip_address' => $request->ip(),
                     'created_at' => $now,
                 ]);
@@ -191,7 +224,7 @@ class CheckInController extends Controller
         } catch (Throwable $e) {
             return response()->json([
                 'status' => 'invalid_token',
-                'message' => 'Kode QR Token Tidak Ditemukan / Tidak Valid',
+                'message' => 'Pemeriksaan Check-In Gagal / Data Tidak Valid',
                 'error_detail' => $e->getMessage(),
             ], 400);
         }
