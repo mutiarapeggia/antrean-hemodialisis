@@ -22,7 +22,18 @@ class RescheduleResultNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['mail', SmsNotificationChannel::class];
+        $patient = $notifiable->patient ?? ($notifiable instanceof \App\Models\Patient ? $notifiable : null);
+        $pref = strtolower($patient->notification_preference ?? 'both');
+
+        $channels = [];
+        if (in_array($pref, ['both', 'email_and_wa', 'email', 'email_only'])) {
+            $channels[] = 'mail';
+        }
+        if (in_array($pref, ['both', 'email_and_wa', 'whatsapp', 'wa_only'])) {
+            $channels[] = SmsNotificationChannel::class;
+        }
+
+        return !empty($channels) ? $channels : ['mail', SmsNotificationChannel::class];
     }
 
     public function toMail($notifiable): MailMessage
@@ -40,13 +51,12 @@ class RescheduleResultNotification extends Notification implements ShouldQueue
             $appointment = $this->rescheduleRequest->appointment;
             $dateFormatted = date('d M Y', strtotime($this->rescheduleRequest->requested_date));
             $shiftFormatted = ucfirst($this->rescheduleRequest->requested_shift);
-            $bedFormatted = $appointment->bed_number ? (str_starts_with($appointment->bed_number, 'Bed') ? $appointment->bed_number : "Bed {$appointment->bed_number}") : 'Utama';
+            $bedFormatted = $appointment ? ($appointment->bed_number ? "Bed #{$appointment->bed_number}" : 'Bed Utama') : 'Bed Utama';
 
             $mail->line("✅ STATUS: DISETUJUI")
                 ->line("📅 Tanggal Baru: {$dateFormatted}")
                 ->line("⏰ Shift Baru: {$shiftFormatted}")
                 ->line("🛋️ Bed Alokasi: {$bedFormatted}")
-                ->line("🔑 Token QR Check-In Baru: {$appointment->qr_code_token}")
                 ->action('Lihat Jadwal Baru Saya', url('/patient/appointments'));
         } else {
             $mail->line("❌ STATUS: DITOLAK")
@@ -58,12 +68,27 @@ class RescheduleResultNotification extends Notification implements ShouldQueue
         return $mail->line('Terima kasih.');
     }
 
+    public function toWhatsApp($notifiable): string
+    {
+        $patientName = $notifiable->name ?? $this->rescheduleRequest->patient->user->name ?? 'Pasien';
+        $isApproved = $this->rescheduleRequest->status === 'approved';
+
+        if ($isApproved) {
+            $dateFormatted = date('d M Y', strtotime($this->rescheduleRequest->requested_date));
+            $shiftFormatted = ucfirst($this->rescheduleRequest->requested_shift);
+            return "STATUS RESCHEDULE DISETUJUI: Halo {$patientName}, permohonan reschedule Anda telah DISETUJUI.\n\n" .
+                   "• Tanggal Baru: {$dateFormatted}\n" .
+                   "• Shift Baru: {$shiftFormatted}\n\n" .
+                   "Silakan cek portal pasien untuk melihat detail jadwal baru Anda.";
+        }
+
+        return "STATUS RESCHEDULE DITOLAK: Halo {$patientName}, permohonan reschedule Anda DITOLAK.\n\n" .
+               "• Catatan: " . ($this->rescheduleRequest->admin_notes ?? 'Jadwal lama tetap berlaku') . "\n\n" .
+               "Jadwal lama Anda tetap berlaku.";
+    }
+
     public function toSms($notifiable): string
     {
-        $isApproved = $this->rescheduleRequest->status === 'approved';
-        if ($isApproved) {
-            return "Reschedule DISETUJUI: Tanggal {$this->rescheduleRequest->requested_date}, Shift {$this->rescheduleRequest->requested_shift}. Silakan cek portal pasien.";
-        }
-        return "Reschedule DITOLAK: " . ($this->rescheduleRequest->admin_notes ?? 'Jadwal lama tetap berlaku') . ". Silakan cek portal pasien.";
+        return $this->toWhatsApp($notifiable);
     }
 }

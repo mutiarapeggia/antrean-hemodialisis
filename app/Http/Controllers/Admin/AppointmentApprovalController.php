@@ -127,6 +127,15 @@ class AppointmentApprovalController extends Controller
                 "Janji temu #{$lockedAppointment->id} pasien {$lockedAppointment->patient->user->name} disetujui oleh admin. Bed: #{$bedNumber} (Emergency: " . ($emergencyOverride ? 'YA' : 'TIDAK') . ").",
                 auth()->id()
             );
+
+            // Send Realtime Notification (Email & WA)
+            if ($lockedAppointment->patient && $lockedAppointment->patient->user) {
+                try {
+                    $lockedAppointment->patient->user->notify(new \App\Notifications\AppointmentApprovedNotification($lockedAppointment));
+                } catch (Throwable $e) {
+                    // Suppress notification dispatch error in transaction
+                }
+            }
         });
 
         return back()->with('success', 'Janji temu berhasil disetujui dan slot bed dialokasikan!');

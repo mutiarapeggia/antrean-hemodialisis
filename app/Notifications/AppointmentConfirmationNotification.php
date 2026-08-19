@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use App\Models\Appointment;
+use App\Notifications\Channels\SmsNotificationChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -21,7 +22,18 @@ class AppointmentConfirmationNotification extends Notification implements Should
 
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        $patient = $notifiable->patient ?? ($notifiable instanceof \App\Models\Patient ? $notifiable : null);
+        $pref = strtolower($patient->notification_preference ?? 'both');
+
+        $channels = [];
+        if (in_array($pref, ['both', 'email_and_wa', 'email', 'email_only'])) {
+            $channels[] = 'mail';
+        }
+        if (in_array($pref, ['both', 'email_and_wa', 'whatsapp', 'wa_only'])) {
+            $channels[] = SmsNotificationChannel::class;
+        }
+
+        return !empty($channels) ? $channels : ['mail', SmsNotificationChannel::class];
     }
 
     public function toMail(object $notifiable): MailMessage
@@ -46,5 +58,24 @@ class AppointmentConfirmationNotification extends Notification implements Should
             ->line("Silakan tunjukkan Kode QR saat melakukan check-in di kiosk klinik.")
             ->action('Lihat Janji Temu', url('/patient/appointments'))
             ->line('Terima kasih telah mempercayakan layanan kesehatan Anda pada Klinik Hemodialisis.');
+    }
+
+    public function toWhatsApp(object $notifiable): string
+    {
+        $patientName = $this->appointment->patient->user->name ?? $notifiable->name ?? 'Pasien';
+        $rm = $this->appointment->patient->medical_record_number ?? '-';
+        $date = $this->appointment->appointment_date ? $this->appointment->appointment_date->format('d-m-Y') : '';
+        $shiftLabel = ucfirst($this->appointment->shift);
+
+        return "KONFIRMASI JANJI TEMU: Halo {$patientName}, pendaftaran janji temu Anda telah dikonfirmasi.\n\n" .
+               "• No. RM: {$rm}\n" .
+               "• Tanggal: {$date}\n" .
+               "• Shift: {$shiftLabel}\n\n" .
+               "Silakan scan Kode QR / No. RM Anda pada mesin Kiosk saat tiba di klinik.";
+    }
+
+    public function toSms(object $notifiable): string
+    {
+        return $this->toWhatsApp($notifiable);
     }
 }

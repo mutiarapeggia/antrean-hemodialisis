@@ -60,6 +60,19 @@ class AnnouncementController extends Controller
             'created_at' => now(),
         ]);
 
+        if ($announcement->is_active) {
+            try {
+                $patients = \App\Models\Patient::with('user')->where('is_active', true)->get();
+                foreach ($patients as $p) {
+                    if ($p->user) {
+                        $p->user->notify(new \App\Notifications\ClinicAnnouncementNotification($announcement));
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Suppress notification dispatch error
+            }
+        }
+
         return back()->with('success', 'Pengumuman baru berhasil diterbitkan.');
     }
 

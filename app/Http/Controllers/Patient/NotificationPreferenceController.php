@@ -23,12 +23,14 @@ class NotificationPreferenceController extends Controller
             ->get();
 
         $notifications = AuditLog::where(function ($q) use ($patient) {
-            $q->where('description', 'like', "%{$patient->medical_record_number}%")
-              ->orWhere('description', 'like', "%{$patient->user->name}%");
+            if ($patient) {
+                $q->where('description', 'like', "%{$patient->medical_record_number}%")
+                  ->orWhere('description', 'like', "%{$patient->user->name}%");
+            }
         })->latest()->take(20)->get();
 
         return Inertia::render('Patient/Notifications/Index', [
-            'patient' => $patient->load('user'),
+            'patient' => $patient ? $patient->load('user') : null,
             'announcements' => $announcements,
             'notifications' => $notifications,
         ]);
@@ -37,17 +39,21 @@ class NotificationPreferenceController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $request->validate([
-            'notification_preference' => 'required|in:email,whatsapp,both',
-            'whatsapp_number' => 'nullable|string|max:20',
+            'notification_preference' => 'required|in:email,whatsapp,both,email_and_wa,wa_only,email_only',
+            'whatsapp_number' => 'nullable|string|max:25',
         ]);
 
-        $patient = auth()->user()->patient;
+        $user = auth()->user();
+        $patient = $user->patient;
 
-        $patient->update([
-            'notification_preference' => $request->notification_preference,
-            'whatsapp_number' => $request->whatsapp_number,
-        ]);
+        if ($patient) {
+            $patient->update([
+                'notification_preference' => $request->notification_preference,
+                'whatsapp_number' => $request->whatsapp_number,
+                'phone' => $request->whatsapp_number ?: $patient->phone,
+            ]);
+        }
 
-        return back()->with('success', 'Preferensi notifikasi berhasil diperbarui.');
+        return back()->with('success', 'Preferensi saluran notifikasi & nomor WhatsApp berhasil diperbarui.');
     }
 }
