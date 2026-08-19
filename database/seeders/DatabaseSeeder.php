@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Announcement;
 use App\Models\Appointment;
-use App\Models\Medication;
+use App\Models\Bed;
 use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -14,6 +14,22 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // 0. Seed Master Beds 1 to 12
+        for ($i = 1; $i <= 10; $i++) {
+            Bed::firstOrCreate(
+                ['bed_number' => "Bed {$i}"],
+                ['label' => "Bed Utama {$i}", 'status' => 'available', 'notes' => 'Siap digunakan']
+            );
+        }
+        Bed::firstOrCreate(
+            ['bed_number' => 'Bed 11'],
+            ['label' => 'Bed Ruang 2 #11', 'status' => 'maintenance', 'notes' => 'Kalibrasi rutin mesin HD']
+        );
+        Bed::firstOrCreate(
+            ['bed_number' => 'Bed 12'],
+            ['label' => 'Bed Ruang 2 #12', 'status' => 'damaged', 'notes' => 'Motor pengatur posisi dalam perbaikan']
+        );
+
         // 1. Create Admin User (Kredensial: admin / admin@hemo.clinic & password: admin)
         $admin = User::create([
             'name' => 'Admin Klinik Hemodialisis',
@@ -111,23 +127,6 @@ class DatabaseSeeder extends Seeder
                 'address' => $data['address'],
                 'medical_conditions' => $data['conditions'],
                 'is_active' => true,
-            ]);
-
-            // Sample Medication
-            Medication::create([
-                'patient_id' => $patient->id,
-                'name' => 'Erythropoietin (EPO)',
-                'dosage' => '4000 IU',
-                'frequency' => '2x seminggu pasca hemodialisis',
-                'notes' => 'Disuntikkan secara subkutan',
-            ]);
-
-            Medication::create([
-                'patient_id' => $patient->id,
-                'name' => 'Calcium Carbonate (CaCO3)',
-                'dosage' => '500 mg',
-                'frequency' => '3x sehari bersama makan',
-                'notes' => 'Pengikat fosfat',
             ]);
 
             // Sample Appointments

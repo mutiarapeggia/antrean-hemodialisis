@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\Appointment;
 use App\Models\AuditLog;
-use App\Models\Medication;
 use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -182,55 +181,5 @@ class Sprint5QueueAndManagementTest extends TestCase
         $response = $this->actingAs($this->patientUser1)->get(route('patient.announcements.index'));
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page->component('Patient/Announcements/Index'));
-    }
-
-    public function test_admin_can_crud_medications(): void
-    {
-        // 1. Create Medication
-        $createResponse = $this->actingAs($this->admin)->post(route('admin.medications.store'), [
-            'patient_id' => $this->patient1->id,
-            'name' => 'Erythropoietin (EPO)',
-            'dosage' => '4000 IU',
-            'frequency' => '2x seminggu',
-            'notes' => 'Pasca HD',
-        ]);
-
-        $createResponse->assertRedirect();
-        $this->assertDatabaseHas('medications', [
-            'patient_id' => $this->patient1->id,
-            'name' => 'Erythropoietin (EPO)',
-        ]);
-
-        $med = Medication::where('name', 'Erythropoietin (EPO)')->first();
-
-        // 2. Update Medication
-        $updateResponse = $this->actingAs($this->admin)->put(route('admin.medications.update', $med->id), [
-            'name' => 'Erythropoietin (EPO)',
-            'dosage' => '5000 IU',
-            'frequency' => '2x seminggu',
-            'notes' => 'Dosis dinaikkan',
-        ]);
-        $updateResponse->assertRedirect();
-        $this->assertDatabaseHas('medications', ['id' => $med->id, 'dosage' => '5000 IU']);
-
-        // 3. Attach medication to appointment (FR-44)
-        $attachResponse = $this->actingAs($this->admin)->post(route('admin.appointments.attach-medication', $this->app1->id), [
-            'medication_id' => $med->id,
-            'dosage_given' => '5000 IU',
-            'notes' => 'Disuntikkan di bed #1',
-        ]);
-        $attachResponse->assertRedirect();
-        $this->assertDatabaseHas('appointment_medications', [
-            'appointment_id' => $this->app1->id,
-            'medication_id' => $med->id,
-        ]);
-
-        // 4. Detach medication from appointment
-        $detachResponse = $this->actingAs($this->admin)->delete(route('admin.appointments.detach-medication', [$this->app1->id, $med->id]));
-        $detachResponse->assertRedirect();
-        $this->assertDatabaseMissing('appointment_medications', [
-            'appointment_id' => $this->app1->id,
-            'medication_id' => $med->id,
-        ]);
     }
 }

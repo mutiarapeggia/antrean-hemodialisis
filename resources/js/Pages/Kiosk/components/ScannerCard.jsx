@@ -26,14 +26,20 @@ export default function ScannerCard({
                 streamRef.current = null;
             }
 
-            // Direct getUserMedia for built-in laptop webcam
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                },
-                audio: false
-            });
+            // Direct getUserMedia for built-in laptop webcam with fallback
+            let mediaStream;
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                });
+            } catch (firstErr) {
+                console.warn('[CAMERA WARN] Ideal resolution constraint failed, falling back to default video:', firstErr);
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
 
             streamRef.current = mediaStream;
 
@@ -218,11 +224,11 @@ export default function ScannerCard({
     }, [cameraActive, isProcessing]);
 
     return (
-        <div className="relative w-full aspect-square max-w-[420px] mx-auto bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex flex-col items-center justify-center my-4">
+        <div className="relative w-full aspect-square max-w-[420px] mx-auto bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex flex-col items-center justify-center">
             {/* Native Unmirrored Video Feed for True QR Matrix Reading */}
             <video
                 ref={videoRef}
-                className={`w-full h-full object-cover ${cameraReady ? 'block' : 'hidden'}`}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${cameraReady ? 'opacity-100' : 'opacity-0'}`}
                 autoPlay
                 playsInline
                 muted

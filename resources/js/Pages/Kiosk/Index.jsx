@@ -187,7 +187,7 @@ export default function KioskIndex() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col justify-between p-4 sm:p-8">
+        <div className="h-screen w-screen overflow-hidden flex flex-col justify-between bg-slate-100 p-4 select-none text-slate-900 font-sans antialiased">
             <Head title="Kiosk Touchscreen — Standby Check-In" />
 
             {/* CSS Styling for html5-qrcode smooth video rendering */}
@@ -209,67 +209,57 @@ export default function KioskIndex() {
                 }
             `}</style>
 
-            {/* Header Standby */}
-            <header className="flex flex-col sm:flex-row items-center justify-between bg-white border border-slate-200 rounded-3xl p-6 shadow-xs gap-4">
-                <div className="flex items-center space-x-4">
-                    <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-md">
-                        <Activity className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />
+            {/* Header Atas (Full Width) */}
+            <header className="w-full max-w-7xl mx-auto bg-white rounded-2xl shadow-sm px-6 py-3 flex items-center justify-between border border-slate-200/80">
+                <div className="flex items-center space-x-3">
+                    <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md">
+                        <Activity className="w-6 h-6 animate-pulse" />
                     </div>
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">MESIN KIOSK MANDIRI</h1>
-                        <p className="text-xs sm:text-sm font-extrabold text-blue-600 uppercase tracking-wider">Klinik Utama Hemodialisis</p>
+                        <h1 className="text-lg font-black text-slate-900 tracking-tight">MESIN KIOSK MANDIRI</h1>
+                        <p className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider">Klinik Utama Hemodialisis</p>
                     </div>
                 </div>
 
-                <div className="flex items-center space-x-4">
-                    <div className="hidden sm:flex items-center space-x-3 bg-slate-100 border border-slate-200 px-5 py-3 rounded-2xl">
-                        <Clock className="w-5 h-5 text-blue-600" />
-                        <span className="text-lg font-mono font-black text-slate-800">
-                            {new Date().toLocaleTimeString('id-ID')} WIB
-                        </span>
-                    </div>
-
-                    <a
-                        href="/login"
-                        className="inline-flex items-center space-x-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm rounded-2xl shadow-md transition-all min-h-[48px]"
-                    >
-                        <LogIn className="w-4 h-4 text-blue-400" />
-                        <span>Login / Registrasi Staf & Pasien</span>
-                    </a>
+                <div className="flex items-center space-x-2 bg-slate-100 border border-slate-200/80 px-4 py-2 rounded-xl">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-mono font-black text-slate-800">
+                        {new Date().toLocaleTimeString('id-ID')} WIB
+                    </span>
                 </div>
             </header>
 
-            {/* Main Body Grid */}
-            <main className="my-auto py-8 max-w-4xl mx-auto w-full">
+            {/* Kartu Tengah (Pemindai & Input No. RM) */}
+            <main className="flex-1 flex flex-col items-center justify-center my-auto w-full max-w-2xl mx-auto py-2">
                 {result ? (
                     /* Display Result Card */
-                    <div className={`p-8 sm:p-12 rounded-3xl border text-center shadow-xl space-y-6 ${
+                    <div className={`w-full p-6 sm:p-8 rounded-3xl border text-center shadow-xl space-y-4 ${
                         result.type === 'success' ? 'bg-emerald-50 border-emerald-300 text-emerald-950' :
                         result.type === 'late' ? 'bg-rose-50 border-rose-300 text-rose-950' :
                         result.type === 'warning' ? 'bg-amber-50 border-amber-300 text-amber-950' :
                         'bg-slate-100 border-slate-300 text-slate-950'
                     }`}>
                         <div className="flex justify-center">
-                            {result.type === 'success' && <CheckCircle2 className="w-24 h-24 text-emerald-600" />}
-                            {result.type === 'late' && <XCircle className="w-24 h-24 text-rose-600" />}
-                            {result.type === 'warning' && <AlertTriangle className="w-24 h-24 text-amber-600" />}
-                            {result.type === 'error' && <XCircle className="w-24 h-24 text-slate-600" />}
+                            {result.type === 'success' && <CheckCircle2 className="w-16 h-16 text-emerald-600" />}
+                            {result.type === 'late' && <XCircle className="w-16 h-16 text-rose-600" />}
+                            {result.type === 'warning' && <AlertTriangle className="w-16 h-16 text-amber-600" />}
+                            {result.type === 'error' && <XCircle className="w-16 h-16 text-slate-600" />}
                         </div>
 
                         <div>
-                            <h2 className="text-3xl sm:text-4xl font-black">{result.title}</h2>
+                            <h2 className="text-2xl font-black">{result.title}</h2>
                             {result.patient_name && (
-                                <p className="text-xl text-slate-800 mt-2 font-black">{result.patient_name} ({result.rm_number})</p>
+                                <p className="text-base text-slate-800 mt-1 font-black">{result.patient_name} ({result.rm_number})</p>
                             )}
                             {result.shift && (
-                                <p className="text-base font-bold text-slate-700 mt-1">Shift {result.shift} • {result.bed_number}</p>
+                                <p className="text-xs font-bold text-slate-700 mt-1">Shift {result.shift} • {result.bed_number}</p>
                             )}
                         </div>
 
-                        <div className="pt-4">
+                        <div className="pt-2">
                             <button
                                 onClick={() => setResult(null)}
-                                className="px-10 py-5 bg-blue-600 text-white hover:bg-blue-500 text-xl font-black rounded-2xl shadow-lg shadow-blue-600/30 transition-all min-h-[64px]"
+                                className="px-8 py-3.5 bg-blue-600 text-white hover:bg-blue-500 text-base font-black rounded-xl shadow-lg shadow-blue-600/30 transition-all min-h-[48px]"
                             >
                                 Kembali ke Layar Utama
                             </button>
@@ -277,32 +267,34 @@ export default function KioskIndex() {
                     </div>
                 ) : (
                     /* Scanner & Input Card */
-                    <div className="bg-white border border-slate-200 rounded-3xl p-8 sm:p-12 shadow-xl space-y-8">
-                        <div className="text-center space-y-2">
-                            <h2 className="text-3xl sm:text-4xl font-black text-slate-900">Check-In Pasien Mandiri</h2>
-                            <p className="text-base sm:text-lg font-semibold text-slate-600">
-                                Masukkan Nomor Rekam Medis (No. RM) Pasien di bawah ini atau pindai Barcode / Kode QR No. RM Anda
+                    <div className="w-full bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+                        <div className="text-center space-y-1">
+                            <h2 className="text-xl sm:text-2xl font-black text-slate-900">Check-In Pasien Mandiri</h2>
+                            <p className="text-xs font-semibold text-slate-500">
+                                Masukkan Nomor Rekam Medis (No. RM) Anda atau pindai Barcode / Kode QR
                             </p>
                         </div>
 
-                        {/* Scanner Card Component */}
-                        <ScannerCard 
-                            cameraActive={cameraActive}
-                            scanMessage={scanMessage}
-                            onToggleCamera={() => setCameraActive(!cameraActive)}
-                            onDetected={handleDetectedCode}
-                            regionId="html5qr-code-full-region"
-                        />
+                        {/* Scanner Card Component Box */}
+                        <div className="max-w-xs md:max-w-sm w-full mx-auto">
+                            <ScannerCard 
+                                cameraActive={cameraActive}
+                                scanMessage={scanMessage}
+                                onToggleCamera={() => setCameraActive(!cameraActive)}
+                                onDetected={handleDetectedCode}
+                                regionId="html5qr-code-full-region"
+                            />
+                        </div>
 
                         {/* Keyboard / Input Touch Card */}
-                        <form onSubmit={(e) => { e.preventDefault(); handleCheckIn(); }} className="space-y-6">
-                            <div className="relative max-w-2xl mx-auto">
+                        <form onSubmit={(e) => { e.preventDefault(); handleCheckIn(); }} className="space-y-3 max-w-xs md:max-w-sm mx-auto">
+                            <div className="relative w-full">
                                 <input
                                     type="text"
                                     value={qrInput}
                                     onChange={(e) => setQrInput(e.target.value)}
-                                    placeholder="Contoh: RM-9901 atau RM-202607-001"
-                                    className="w-full bg-slate-50 border-2 border-slate-300 rounded-2xl py-5 px-6 text-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-mono text-center font-bold"
+                                    placeholder="Masukkan No RM Anda"
+                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-3 px-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 font-mono text-center font-bold"
                                     autoFocus
                                 />
                             </div>
@@ -311,7 +303,7 @@ export default function KioskIndex() {
                                 <button
                                     type="submit"
                                     disabled={loading || !qrInput.trim()}
-                                    className="w-full max-w-2xl py-5 bg-blue-600 hover:bg-blue-500 text-white text-2xl font-black rounded-2xl shadow-xl shadow-blue-600/30 transition-all min-h-[64px] disabled:opacity-50"
+                                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white text-base font-black rounded-xl shadow-lg shadow-blue-600/30 transition-all min-h-[48px] disabled:opacity-50"
                                 >
                                     {loading ? 'Memproses Check-In...' : 'PROSES CHECK-IN NO. RM'}
                                 </button>
@@ -321,9 +313,9 @@ export default function KioskIndex() {
                 )}
             </main>
 
-            {/* Footer Kiosk */}
-            <footer className="flex items-center justify-center py-4 border-t border-slate-200 text-slate-600 font-semibold text-xs text-center">
-                <span>Sistem Antrean Hemodialisis • Versi Kiosk Touchscreen v1.0 • Aksesibel WCAG 2.1 AA</span>
+            {/* Footer Bawah */}
+            <footer className="w-full text-center text-xs text-slate-400 py-1">
+                <span>Sistem Antrean Hemodialisis • Versi Kiosk Touchscreen v1.0</span>
             </footer>
         </div>
     );

@@ -16,7 +16,7 @@ import {
     RefreshCw
 } from 'lucide-react';
 
-export default function Index({ appointments, patient }) {
+export default function Index({ appointments, patient, availableBeds = [] }) {
     const [isBookingOpen, setIsBookingOpen] = useState(false);
     const [viewingQr, setViewingQr] = useState(null);
     const [cancellingApp, setCancellingApp] = useState(null);
@@ -189,13 +189,20 @@ export default function Index({ appointments, patient }) {
                                     {/* Action Bar */}
                                     <div className="pt-4 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <button
-                                                onClick={() => setViewingQr(app)}
-                                                className="inline-flex items-center space-x-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-200 transition-colors"
-                                            >
-                                                <QrCode className="w-4 h-4 text-blue-600" />
-                                                <span>Kode QR</span>
-                                            </button>
+                                            {(app.approval_status === 'pending_approval' || app.status === 'pending') ? (
+                                                <span className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
+                                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                                    <span>Menunggu Persetujuan Admin</span>
+                                                </span>
+                                            ) : (app.status === 'scheduled' || app.status === 'approved' || app.approval_status === 'approved' || app.status === 'checked-in') ? (
+                                                <button
+                                                    onClick={() => setViewingQr(app)}
+                                                    className="inline-flex items-center space-x-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-200 transition-colors"
+                                                >
+                                                    <QrCode className="w-4 h-4 text-blue-600" />
+                                                    <span>Kode QR</span>
+                                                </button>
+                                            ) : null}
 
                                             {isScheduled && (
                                                 hasPendingReschedule ? (
@@ -280,9 +287,17 @@ export default function Index({ appointments, patient }) {
                                     onChange={(e) => bookingForm.setData('bed_number', e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-semibold text-sm focus:border-blue-600 focus:outline-none"
                                 >
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                                        <option key={num} value={num}>Bed {num}</option>
-                                    ))}
+                                    {availableBeds && availableBeds.length > 0 ? (
+                                        availableBeds.map((bed) => (
+                                            <option key={bed.id} value={bed.bed_number}>
+                                                {bed.bed_number} ({bed.label})
+                                            </option>
+                                        ))
+                                    ) : (
+                                        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                                            <option key={num} value={`Bed ${num}`}>Bed {num}</option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
 

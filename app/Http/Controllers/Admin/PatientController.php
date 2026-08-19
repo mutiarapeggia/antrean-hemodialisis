@@ -90,7 +90,7 @@ class PatientController extends Controller
 
     public function show(Patient $patient): Response
     {
-        $patient->load(['user', 'medications', 'appointments' => function ($q) {
+        $patient->load(['user', 'appointments' => function ($q) {
             $q->orderBy('appointment_date', 'desc')->take(5);
         }]);
 

@@ -30,9 +30,12 @@ class AppointmentController extends Controller
                 return $app;
             });
 
+        $availableBeds = \App\Models\Bed::where('status', \App\Models\Bed::STATUS_AVAILABLE)->get();
+
         return Inertia::render('Patient/Appointments/Index', [
             'appointments' => $appointments,
             'patient' => $patient,
+            'availableBeds' => $availableBeds,
         ]);
     }
 

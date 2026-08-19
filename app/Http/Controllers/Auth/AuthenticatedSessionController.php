@@ -21,7 +21,6 @@ class AuthenticatedSessionController extends Controller
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),
-            'as' => $request->query('as', 'staf'),
         ]);
     }
 
@@ -35,7 +34,7 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = Auth::user();
-        if ($user && $user->isAdmin()) {
+        if ($user && ($user->isAdmin() || $user->role === 'staff')) {
             return redirect()->intended(route('admin.dashboard'));
         }
 

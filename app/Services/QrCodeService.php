@@ -3,19 +3,30 @@
 namespace App\Services;
 
 use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
+use chillerlan\QRCode\Output\QRMarkupSVG;
 use Throwable;
 
 class QrCodeService
 {
     /**
-     * Generate 100% valid base64 Data URI for <img> tags
+     * Generate 100% valid base64 Data URI for <img> tags with crisp square modules
      */
     public static function generateDataUri(string $text): string
     {
         $payload = !empty($text) ? trim($text) : 'RM-9901';
 
         try {
-            return (new QRCode())->render($payload);
+            $options = new QROptions([
+                'outputBase64' => true,
+                'outputInterface' => QRMarkupSVG::class,
+                'drawCircularModules' => false,
+                'addQuietzone' => true,
+                'quietzoneSize' => 4,
+                'svgAddXmlHeader' => true,
+            ]);
+
+            return (new QRCode($options))->render($payload);
         } catch (Throwable $e) {
             return '';
         }
@@ -51,3 +62,5 @@ class QrCodeService
         }
     }
 }
+
+

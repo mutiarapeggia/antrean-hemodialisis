@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Patient;
 use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\Appointment;
-use App\Models\Medication;
 use App\Models\RescheduleRequest;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,7 +21,6 @@ class DashboardController extends Controller
                 'patient' => null,
                 'upcomingAppointments' => [],
                 'rescheduleRequests' => [],
-                'medications' => [],
                 'announcements' => [],
             ]);
         }
@@ -39,8 +37,6 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $medications = Medication::where('patient_id', $patient->id)->get();
-
         $announcements = Announcement::where('is_active', true)
             ->orderBy('publish_date', 'desc')
             ->take(5)
@@ -50,7 +46,6 @@ class DashboardController extends Controller
             'patient' => $patient,
             'upcomingAppointments' => $upcomingAppointments,
             'rescheduleRequests' => $rescheduleRequests,
-            'medications' => $medications,
             'announcements' => $announcements,
         ]);
     }

@@ -61,10 +61,13 @@ class AppointmentApprovalController extends Controller
             'rejected_count' => Appointment::where('approval_status', 'rejected')->count() + RescheduleRequest::where('status', 'rejected')->count(),
         ];
 
+        $availableBeds = \App\Models\Bed::where('status', \App\Models\Bed::STATUS_AVAILABLE)->get()->sortBy(fn($b) => (int) preg_replace('/\D/', '', $b->bed_number))->values();
+
         return Inertia::render('Admin/Appointments/Approvals', [
             'appointments' => $appointments,
             'rescheduleRequests' => $rescheduleRequests,
             'patients' => $patients,
+            'availableBeds' => $availableBeds,
             'stats' => $stats,
             'filters' => [
                 'type' => $type,

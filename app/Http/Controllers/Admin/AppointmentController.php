@@ -59,9 +59,12 @@ class AppointmentController extends Controller
             'cancelled_count' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_CANCELLED)->count(),
         ];
 
+        $availableBeds = \App\Models\Bed::where('status', \App\Models\Bed::STATUS_AVAILABLE)->get();
+
         return Inertia::render('Admin/Appointments/Index', [
             'appointments' => $appointments,
             'patients' => $patients,
+            'availableBeds' => $availableBeds,
             'shiftGrid' => $shiftGrid,
             'stats' => $stats,
             'filters' => [

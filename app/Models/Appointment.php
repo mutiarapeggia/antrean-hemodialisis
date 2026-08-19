@@ -97,11 +97,4 @@ class Appointment extends Model
     {
         return $this->hasOne(RescheduleRequest::class)->latestOfMany();
     }
-
-    public function medications(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
-    {
-        return $this->belongsToMany(Medication::class, 'appointment_medications')
-            ->withPivot(['dosage_given', 'notes'])
-            ->withTimestamps();
-    }
 }

@@ -55,7 +55,7 @@ class QueueController extends Controller
         $selectedShift = $request->input('shift', 'all');
         $selectedStatus = $request->input('status', 'all');
 
-        $query = Appointment::with(['patient.user', 'checkIn', 'medications'])
+        $query = Appointment::with(['patient.user', 'checkIn'])
             ->whereDate('appointment_date', $selectedDate);
 
         if ($selectedShift !== 'all') {

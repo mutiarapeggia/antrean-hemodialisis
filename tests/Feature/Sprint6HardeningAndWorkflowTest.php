@@ -48,30 +48,26 @@ class Sprint6HardeningAndWorkflowTest extends TestCase
 
     public function test_patient_registration_approval_workflow(): void
     {
-        // 1. View Approvals Index
-        $indexResponse = $this->actingAs($this->admin)->get(route('admin.patient-approvals.index'));
-        $indexResponse->assertStatus(200);
+        $regResponse = $this->post(route('register'), [
+            'name' => 'Pasien Auto Active',
+            'email' => 'autoactive@test.com',
+            'phone' => '081288887777',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
 
-        // 2. Admin Approve Patient
-        $approveResponse = $this->actingAs($this->admin)->post(route('admin.patient-approvals.approve', $this->patient->id));
-        $approveResponse->assertRedirect();
+        $regResponse->assertRedirect(route('login'));
+        $regResponse->assertSessionHas('status', 'Registrasi berhasil, silakan masuk ke akun Anda.');
 
+        $this->assertDatabaseHas('users', [
+            'email' => 'autoactive@test.com',
+            'role' => 'patient',
+        ]);
+
+        $user = User::where('email', 'autoactive@test.com')->first();
         $this->assertDatabaseHas('patients', [
-            'id' => $this->patient->id,
-            'approval_status' => 'approved',
+            'user_id' => $user->id,
             'is_active' => true,
-        ]);
-
-        // 3. Admin Reject Patient
-        $rejectResponse = $this->actingAs($this->admin)->post(route('admin.patient-approvals.reject', $this->patient->id), [
-            'rejection_reason' => 'Berkas rekam medis tidak valid',
-        ]);
-
-        $rejectResponse->assertRedirect();
-        $this->assertDatabaseHas('patients', [
-            'id' => $this->patient->id,
-            'approval_status' => 'rejected',
-            'rejection_reason' => 'Berkas rekam medis tidak valid',
         ]);
     }
 
@@ -164,6 +160,7 @@ class Sprint6HardeningAndWorkflowTest extends TestCase
         ]);
 
         // 2. Test WhatsappGatewayService directly
+        \Illuminate\Support\Facades\Http::fake();
         $waService = new WhatsappGatewayService();
         $sent = $waService->sendMessage('081299998888', 'Test WhatsApp Alert');
         $this->assertTrue($sent);

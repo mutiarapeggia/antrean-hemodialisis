@@ -22,7 +22,8 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string'],
+            'login' => ['nullable', 'string'],
+            'email' => ['nullable', 'string'],
             'password' => ['required', 'string'],
         ];
     }
@@ -31,31 +32,39 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        $loginInput = trim($this->input('email'));
-        $password = $this->input('password');
+        $loginInput = trim($this->input('login') ?? $this->input('email') ?? '');
+        $password = (string) $this->input('password');
 
-        $emailToTry = $loginInput;
+        if (empty($loginInput)) {
+            throw ValidationException::withMessages([
+                'email' => 'Silakan masukkan username, email, atau No. RM Anda.',
+            ]);
+        }
 
-        if (strtolower($loginInput) === 'admin') {
-            $adminUser = User::where('role', 'admin')->first();
-            if ($adminUser) {
-                $emailToTry = $adminUser->email;
-            }
-        } elseif (str_starts_with(strtoupper($loginInput), 'RM-')) {
+        // 1. Check direct Email match
+        $user = User::where('email', $loginInput)->first();
+
+        // 2. Check Username / Name match
+        if (! $user) {
+            $user = User::where('name', $loginInput)->first();
+        }
+
+        // 3. Check Medical Record Number (No. RM) match
+        if (! $user) {
             $patient = Patient::where('medical_record_number', strtoupper($loginInput))->first();
             if ($patient && $patient->user) {
-                $emailToTry = $patient->user->email;
+                $user = $patient->user;
             }
         }
 
-        if (! Auth::attempt(['email' => $emailToTry, 'password' => $password], $this->boolean('remember'))) {
-            // Backup attempt by username/name
-            $userByName = User::where('name', $loginInput)->first();
-            if ($userByName && Auth::attempt(['email' => $userByName->email, 'password' => $password], $this->boolean('remember'))) {
-                RateLimiter::clear($this->throttleKey());
-                return;
-            }
+        // 4. Special fallback for 'admin' username
+        if (! $user && strtolower($loginInput) === 'admin') {
+            $user = User::where('role', 'admin')->first();
+        }
 
+        $emailToAttempt = $user ? $user->email : $loginInput;
+
+        if (! Auth::attempt(['email' => $emailToAttempt, 'password' => $password], $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

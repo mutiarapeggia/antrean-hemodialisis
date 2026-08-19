@@ -2,13 +2,14 @@
 
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AppointmentController as AdminAppointmentController;
+use App\Http\Controllers\Admin\BedController as AdminBedController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-use App\Http\Controllers\Admin\MedicationController as AdminMedicationController;
 use App\Http\Controllers\Admin\PatientController;
 use App\Http\Controllers\Admin\QueueController as AdminQueueController;
 use App\Http\Controllers\Admin\RescheduleRequestController as AdminRescheduleRequestController;
 use App\Http\Controllers\Api\CheckInController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\BedInformationController;
 use App\Http\Controllers\Patient\AnnouncementController as PatientAnnouncementController;
 use App\Http\Controllers\Patient\AppointmentController as PatientAppointmentController;
 use App\Http\Controllers\Patient\DashboardController as PatientDashboardController;
@@ -27,6 +28,9 @@ Route::get('/', function () {
 Route::get('/kiosk', function () {
     return Inertia::render('Kiosk/Index');
 })->name('kiosk');
+
+// 2b. Public Realtime Bed Information Display
+Route::get('/informasi-bed', [BedInformationController::class, 'index'])->name('bed-information');
 
 // 3. Monitor Antrean TV / Live Display (Public)
 Route::get('/monitor', [AdminQueueController::class, 'monitorDisplay'])->name('monitor');
@@ -66,10 +70,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/patients/{patient}/toggle-status', [PatientController::class, 'toggleStatus'])->name('patients.toggle-status');
     Route::resource('patients', PatientController::class);
 
+    // Master Bed Management
+    Route::resource('beds', AdminBedController::class);
+
     // Appointment Management
     Route::post('/appointments/{appointment}/cancel', [AdminAppointmentController::class, 'cancel'])->name('appointments.cancel');
-    Route::post('/appointments/{appointment}/attach-medication', [AdminMedicationController::class, 'attachToAppointment'])->name('appointments.attach-medication');
-    Route::delete('/appointments/{appointment}/detach-medication/{medication}', [AdminMedicationController::class, 'detachFromAppointment'])->name('appointments.detach-medication');
     Route::resource('appointments', AdminAppointmentController::class);
 
     // Reschedule Request Management
@@ -77,10 +82,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/reschedule-requests/{rescheduleRequest}/approve', [AdminRescheduleRequestController::class, 'approve'])->name('reschedule-requests.approve');
     Route::post('/reschedule-requests/{rescheduleRequest}/reject', [AdminRescheduleRequestController::class, 'reject'])->name('reschedule-requests.reject');
 
-    // Patient Approvals
-    Route::get('/patient-approvals', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'index'])->name('patient-approvals.index');
-    Route::post('/patient-approvals/{patient}/approve', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'approve'])->name('patient-approvals.approve');
-    Route::post('/patient-approvals/{patient}/reject', [\App\Http\Controllers\Admin\PatientApprovalController::class, 'reject'])->name('patient-approvals.reject');
+
 
     // Appointment Approvals & Emergency Override
     Route::get('/appointment-approvals', [\App\Http\Controllers\Admin\AppointmentApprovalController::class, 'index'])->name('appointment-approvals.index');
@@ -91,9 +93,6 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     // Announcements Management
     Route::post('/announcements/{announcement}/toggle-status', [AdminAnnouncementController::class, 'toggleStatus'])->name('announcements.toggle-status');
     Route::resource('announcements', AdminAnnouncementController::class)->except(['create', 'edit', 'show']);
-
-    // Medications Management
-    Route::resource('medications', AdminMedicationController::class)->except(['create', 'edit', 'show']);
 });
 
 // 8. Patient Protected Routes (/pasien)

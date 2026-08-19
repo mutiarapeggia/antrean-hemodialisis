@@ -3,7 +3,7 @@ import AdminLayout from '@/Layouts/AdminLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { CheckSquare, XSquare, AlertOctagon, Calendar, Clock, User, ShieldAlert, Plus, X, Filter, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 
-export default function AppointmentApprovalsIndex({ appointments, rescheduleRequests, patients, stats, filters }) {
+export default function AppointmentApprovalsIndex({ appointments, rescheduleRequests, patients, availableBeds = [], stats, filters }) {
     const [activeTab, setActiveTab] = useState(filters?.type === 'reschedule' ? 'reschedule' : 'new');
     const [selectedItem, setSelectedItem] = useState(null);
     const [modalType, setModalType] = useState(null); // 'approve_new', 'reject_new', 'approve_reschedule', 'reject_reschedule'
@@ -421,21 +421,27 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
                         </div>
 
                         <p className="text-xs font-semibold text-slate-600">
-                            Pilih alokasi nomor bed (1-10) untuk pasien <strong className="text-slate-900">{selectedItem.patient?.user?.name}</strong>.
+                            Pilih alokasi nomor Bed yang tersedia untuk pasien <strong className="text-slate-900">{selectedItem.patient?.user?.name}</strong>.
                         </p>
 
                         <form onSubmit={handleConfirmApprove} className="space-y-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Pilih Nomor Bed (1 - 10) *</label>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Pilih Nomor Bed Tersedia *</label>
                                 <select
                                     value={approveData.bed_number}
                                     onChange={(e) => setApproveData('bed_number', e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-bold text-slate-900 focus:outline-none focus:border-blue-600"
                                     required
                                 >
-                                    {[1,2,3,4,5,6,7,8,9,10].map((n) => (
-                                        <option key={n} value={String(n)}>Bed #{n}</option>
-                                    ))}
+                                    {availableBeds && availableBeds.length > 0 ? (
+                                        availableBeds.map((b) => (
+                                            <option key={b.id} value={b.bed_number}>{b.bed_number} ({b.label})</option>
+                                        ))
+                                    ) : (
+                                        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                            <option key={n} value={`Bed ${n}`}>Bed #{n}</option>
+                                        ))
+                                    )}
                                 </select>
                             </div>
 
@@ -601,9 +607,15 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
                                         className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-rose-500"
                                         required
                                     >
-                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                                            <option key={n} value={String(n)}>Bed #{n}</option>
-                                        ))}
+                                        {availableBeds && availableBeds.length > 0 ? (
+                                            availableBeds.map((b) => (
+                                                <option key={b.id} value={b.bed_number}>{b.bed_number}</option>
+                                            ))
+                                        ) : (
+                                            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                                <option key={n} value={`Bed ${n}`}>Bed #{n}</option>
+                                            ))
+                                        )}
                                     </select>
                                 </div>
                             </div>

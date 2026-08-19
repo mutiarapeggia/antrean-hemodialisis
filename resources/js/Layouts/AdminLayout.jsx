@@ -6,7 +6,7 @@ import {
     Calendar, 
     QrCode, 
     Bell, 
-    Pill, 
+    Bed, 
     LogOut, 
     Menu, 
     X,
@@ -22,12 +22,11 @@ export default function AdminLayout({ children, title }) {
     const navigation = [
         { name: 'Dashboard', href: route('admin.dashboard'), icon: LayoutDashboard, current: route().current('admin.dashboard') },
         { name: 'Monitor Antrean', href: route('admin.queue.index'), icon: QrCode, current: route().current('admin.queue.*') },
-        { name: 'Approval Registrasi Pasien', href: route('admin.patient-approvals.index'), icon: UserCheck, current: route().current('admin.patient-approvals.*') },
         { name: 'Approval Janji & Reschedule', href: route('admin.appointment-approvals.index'), icon: CheckSquare, current: route().current('admin.appointment-approvals.*') || route().current('admin.reschedule-requests.*') },
+        { name: 'Master Bed', href: route('admin.beds.index'), icon: Bed, current: route().current('admin.beds.*') },
         { name: 'Manajemen Pasien', href: route('admin.patients.index'), icon: Users, current: route().current('admin.patients.*') },
         { name: 'Janji Temu & Shift', href: route('admin.appointments.index'), icon: Calendar, current: route().current('admin.appointments.*') },
         { name: 'Pengumuman Klinik', href: route('admin.announcements.index'), icon: Bell, current: route().current('admin.announcements.*') },
-        { name: 'Manajemen Obat', href: route('admin.medications.index'), icon: Pill, current: route().current('admin.medications.*') },
     ];
 
     return (
