@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { Head, Link } from '@inertiajs/react';
 import { 
     QrCode, 
@@ -11,39 +11,77 @@ import {
     LogIn
 } from 'lucide-react';
 import axios from 'axios';
-import Quagga from '@ericblade/quagga2';
-import jsQR from 'jsqr';
+import ScannerCard from './components/ScannerCard';
 
 export default function KioskIndex() {
     const [qrInput, setQrInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
-    const [cameraActive, setCameraActive] = useState(false);
-    const [scanMessage, setScanMessage] = useState('');
+    const [cameraActive, setCameraActive] = useState(true);
+    const [scanMessage, setScanMessage] = useState('Kamera Pemindai Standby');
 
-    const scannerContainerRef = useRef(null);
-    const canvasRef = useRef(null);
     const isProcessingRef = useRef(false);
 
+    // Audio Beep generator using Web Audio API for scan feedback
     const playBeep = (type = 'success') => {
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const osc = audioCtx.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(type === 'success' ? 880 : 330, audioCtx.currentTime); // Tone A5
-            osc.connect(audioCtx.destination);
+            const gain = audioCtx.createGain();
+            
+            osc.type = type === 'success' ? 'sine' : 'sawtooth';
+            osc.frequency.setValueAtTime(type === 'success' ? 880 : 330, audioCtx.currentTime); // Tone A5 (880Hz)
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.15);
+            osc.stop(audioCtx.currentTime + 0.18);
         } catch (e) {
             console.log('Audio error:', e);
         }
     };
 
-    const extractCleanRm = (rawText) => {
+    /**
+     * Advanced QR Payload & Barcode Parser (Handles URL query params, JSON, RM regex, and pure numbers)
+     */
+    const extractCleanToken = (rawText) => {
         if (!rawText) return '';
-        let text = rawText.trim();
-        
-        // 1. Check if contains pattern RM-9901 or RM9901
+        let text = String(rawText).trim();
+
+        // 1. Check if JSON payload (e.g. {"token": "HMAC...", "rm": "RM-9901"})
+        try {
+            const parsed = JSON.parse(text);
+            if (parsed && typeof parsed === 'object') {
+                if (parsed.qr_token) return String(parsed.qr_token).trim();
+                if (parsed.rm_number) return String(parsed.rm_number).trim();
+                if (parsed.rm) return String(parsed.rm).trim();
+                if (parsed.token) return String(parsed.token).trim();
+            }
+        } catch (e) {}
+
+        // 2. Check if URL with query params (e.g. http://.../kiosk?qr_token=HMAC... or ?token=RM-9901)
+        if (text.includes('?')) {
+            try {
+                const urlObj = new URL(text);
+                const token = urlObj.searchParams.get('qr_token') 
+                    || urlObj.searchParams.get('token') 
+                    || urlObj.searchParams.get('rm_number')
+                    || urlObj.searchParams.get('rm');
+                if (token) return token.trim();
+            } catch (e) {
+                // Fallback query string parse
+                const queryPart = text.split('?')[1];
+                if (queryPart) {
+                    const params = new URLSearchParams(queryPart);
+                    const token = params.get('qr_token') || params.get('token') || params.get('rm_number') || params.get('rm');
+                    if (token) return token.trim();
+                }
+            }
+        }
+
+        // 3. Match RM pattern e.g. RM-9901, RM-202607-001, RM9901
         const rmMatch = text.match(/(RM-?\d+(?:-\d+)?)/i);
         if (rmMatch) {
             let matched = rmMatch[1].toUpperCase();
@@ -53,126 +91,32 @@ export default function KioskIndex() {
             return matched;
         }
 
-        // 2. Check if pure digits e.g. "9901" -> convert to "RM-9901"
-        const digitMatch = text.match(/^\d+$/);
-        if (digitMatch) {
+        // 4. Pure numeric RM
+        if (/^\d+$/.test(text)) {
             return `RM-${text}`;
         }
 
         return text;
     };
 
-    useEffect(() => {
-        if (!cameraActive) {
-            try { Quagga.stop(); } catch (e) {}
+    const handleDetectedCode = (rawText) => {
+        console.log('[SCANNER DEBUG] Raw incoming payload:', rawText);
+        if (isProcessingRef.current) return;
+
+        const cleanToken = extractCleanToken(rawText);
+        console.log('[SCANNER DEBUG] Extracted clean token:', cleanToken);
+
+        if (!cleanToken) {
+            console.warn('[SCANNER DEBUG] Clean token tidak dapat diekstrak dari payload:', rawText);
             return;
         }
 
-        isProcessingRef.current = false;
-        setScanMessage('Membuka pemindai Barcode (Quagga2 Ultra-Sensitif) & QR Code...');
-
-        const handleDetectedCode = (rawText) => {
-            if (isProcessingRef.current) return;
-            const cleanRm = extractCleanRm(rawText);
-            if (!cleanRm) return;
-
-            isProcessingRef.current = true;
-            console.log("Barcode/QR Terdeteksi Instan:", rawText, "-> Clean RM:", cleanRm);
-
-            playBeep('success');
-
-            try { Quagga.stop(); } catch (e) {}
-
-            setCameraActive(false);
-            setQrInput(cleanRm);
-            handleCheckIn(cleanRm);
-        };
-
-        let animFrameId = null;
-
-        const timer = setTimeout(() => {
-            if (!scannerContainerRef.current) return;
-
-            // 1. Inisialisasi Quagga2 khusus 1D Barcode (Code 128, Code 39, EAN)
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: scannerContainerRef.current,
-                    constraints: {
-                        facingMode: "user",
-                        width: { min: 640, ideal: 1280, max: 1920 },
-                        height: { min: 480, ideal: 720, max: 1080 }
-                    }
-                },
-                locator: {
-                    patchSize: "medium",
-                    halfSample: true
-                },
-                numOfWorkers: 4,
-                frequency: 20, // 20 scans per second
-                decoder: {
-                    readers: [
-                        "code_128_reader",
-                        "code_39_reader",
-                        "code_39_vin_reader",
-                        "ean_reader",
-                        "ean_8_reader",
-                        "codabar_reader"
-                    ]
-                },
-                locate: true
-            }, function(err) {
-                if (err) {
-                    console.error("Quagga Init Failed:", err);
-                    setScanMessage("Gagal membuka pemindai kamera.");
-                    return;
-                }
-                Quagga.start();
-                setScanMessage("Kamera Pemindai Ultra-Sensitif Aktif — Arahkan Barcode / QR Code No. RM");
-
-                // 2. Pararel canvas loop untuk 2D QR Code decoding via jsQR
-                const scanQrLoop = () => {
-                    if (isProcessingRef.current) return;
-
-                    const videoEl = scannerContainerRef.current?.querySelector('video');
-                    if (videoEl && videoEl.readyState === 4) {
-                        const canvas = canvasRef.current || document.createElement("canvas");
-                        const ctx = canvas.getContext("2d");
-                        canvas.width = videoEl.videoWidth || 640;
-                        canvas.height = videoEl.videoHeight || 480;
-                        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-                            inversionAttempts: "dontInvert"
-                        });
-
-                        if (qrCode && qrCode.data) {
-                            handleDetectedCode(qrCode.data);
-                            return;
-                        }
-                    }
-                    animFrameId = requestAnimationFrame(scanQrLoop);
-                };
-                animFrameId = requestAnimationFrame(scanQrLoop);
-            });
-
-            Quagga.onDetected((result) => {
-                if (result && result.codeResult && result.codeResult.code) {
-                    handleDetectedCode(result.codeResult.code);
-                }
-            });
-        }, 100);
-
-        return () => {
-            isProcessingRef.current = true;
-            clearTimeout(timer);
-            if (animFrameId) cancelAnimationFrame(animFrameId);
-            try { Quagga.offDetected(); } catch (e) {}
-            try { Quagga.stop(); } catch (e) {}
-        };
-    }, [cameraActive]);
+        isProcessingRef.current = true;
+        playBeep('success');
+        setCameraActive(false);
+        setQrInput(cleanToken);
+        handleCheckIn(cleanToken);
+    };
 
     const handleCheckIn = async (tokenToUse = null) => {
         const token = tokenToUse || qrInput.trim();
@@ -182,10 +126,13 @@ export default function KioskIndex() {
         setResult(null);
 
         try {
+            console.log('[SCANNER DEBUG] Submitting check-in request with token:', token);
             const response = await axios.post(route('api.check-in.web'), {
                 rm_number: token,
                 qr_token: token,
             });
+
+            console.log('[SCANNER DEBUG] Check-in response success:', response.data);
 
             setResult({
                 type: 'success',
@@ -199,6 +146,7 @@ export default function KioskIndex() {
             playBeep('success');
             setQrInput('');
         } catch (error) {
+            console.error('[SCANNER DEBUG] Check-in request error:', error);
             playBeep('error');
             if (error.response) {
                 const data = error.response.data;
@@ -234,6 +182,7 @@ export default function KioskIndex() {
             }
         } finally {
             setLoading(false);
+            isProcessingRef.current = false;
         }
     };
 
@@ -241,18 +190,22 @@ export default function KioskIndex() {
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased flex flex-col justify-between p-4 sm:p-8">
             <Head title="Kiosk Touchscreen — Standby Check-In" />
 
-            {/* Quagga Video Styling to fit container cleanly */}
+            {/* CSS Styling for html5-qrcode smooth video rendering */}
             <style>{`
-                #scanner-container video, #scanner-container canvas {
+                #html5qr-code-full-region video {
                     width: 100% !important;
                     height: 100% !important;
                     object-fit: cover !important;
                     border-radius: 1rem !important;
                 }
-                #scanner-container canvas.drawingBuffer {
-                    position: absolute !important;
-                    top: 0 !important;
-                    left: 0 !important;
+                #html5qr-code-full-region__scan_region {
+                    border-radius: 1rem !important;
+                }
+                #html5qr-code-full-region img {
+                    display: none !important;
+                }
+                #html5qr-code-full-region__dashboard {
+                    display: none !important;
                 }
             `}</style>
 
@@ -332,33 +285,14 @@ export default function KioskIndex() {
                             </p>
                         </div>
 
-                        {/* Camera API Scanner Toggle */}
-                        <div className="flex flex-col items-center space-y-3">
-                            <button
-                                onClick={() => setCameraActive(!cameraActive)}
-                                className={`px-6 py-3.5 rounded-2xl font-extrabold text-base flex items-center space-x-3 transition-all min-h-[52px] ${
-                                    cameraActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
-                                }`}
-                            >
-                                <Camera className="w-6 h-6" />
-                                <span>{cameraActive ? 'Tutup Kamera Pemindai' : 'Buka Kamera Pemindai (Auto-Scanner)'}</span>
-                            </button>
-                            {cameraActive && (
-                                <span className="text-xs font-bold text-blue-700">{scanMessage}</span>
-                            )}
-                        </div>
-
-                        {cameraActive && (
-                            <div className="relative w-full max-w-md mx-auto my-4 overflow-hidden rounded-2xl shadow-md bg-black border-2 border-blue-600 h-80">
-                                <div id="scanner-container" ref={scannerContainerRef} className="w-full h-full" />
-                                <canvas ref={canvasRef} className="hidden" />
-                                <div className="absolute inset-0 border-2 border-dashed border-emerald-400 opacity-80 pointer-events-none rounded-2xl m-6 flex items-center justify-center">
-                                    <span className="bg-slate-900/80 text-emerald-400 text-xs font-mono font-bold px-3 py-1 rounded-full">
-                                        Area Pemindai Barcode / QR
-                                    </span>
-                                </div>
-                            </div>
-                        )}
+                        {/* Scanner Card Component */}
+                        <ScannerCard 
+                            cameraActive={cameraActive}
+                            scanMessage={scanMessage}
+                            onToggleCamera={() => setCameraActive(!cameraActive)}
+                            onDetected={handleDetectedCode}
+                            regionId="html5qr-code-full-region"
+                        />
 
                         {/* Keyboard / Input Touch Card */}
                         <form onSubmit={(e) => { e.preventDefault(); handleCheckIn(); }} className="space-y-6">

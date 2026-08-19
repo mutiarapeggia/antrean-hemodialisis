@@ -399,9 +399,20 @@ export default function Index({ appointments, patient }) {
 
                         <div className="bg-slate-50 p-4 rounded-2xl inline-block mb-4 border border-slate-200 shadow-inner">
                             {viewingQr.qr_svg ? (
-                                <div dangerouslySetInnerHTML={{ __html: viewingQr.qr_svg }} />
+                                String(viewingQr.qr_svg).startsWith('data:') ? (
+                                    <img 
+                                        src={viewingQr.qr_svg} 
+                                        alt="Kode QR Check-In" 
+                                        className="w-48 h-48 mx-auto rounded-xl bg-white p-2 border border-slate-200 shadow-xs" 
+                                    />
+                                ) : (
+                                    <div 
+                                        className="w-48 h-48 mx-auto flex items-center justify-center bg-white p-2 rounded-xl border border-slate-200 shadow-xs" 
+                                        dangerouslySetInnerHTML={{ __html: viewingQr.qr_svg }} 
+                                    />
+                                )
                             ) : (
-                                <QrCode className="w-40 h-40 text-slate-900 mx-auto" />
+                                <QrCode className="w-48 h-48 text-slate-900 mx-auto" />
                             )}
                         </div>
 

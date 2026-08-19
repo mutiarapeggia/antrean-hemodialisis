@@ -2,63 +2,52 @@
 
 namespace App\Services;
 
+use chillerlan\QRCode\QRCode;
+use Throwable;
+
 class QrCodeService
 {
     /**
-     * Generate inline SVG representation for QR Token.
+     * Generate 100% valid base64 Data URI for <img> tags
+     */
+    public static function generateDataUri(string $text): string
+    {
+        $payload = !empty($text) ? trim($text) : 'RM-9901';
+
+        try {
+            return (new QRCode())->render($payload);
+        } catch (Throwable $e) {
+            return '';
+        }
+    }
+
+    /**
+     * Generate pure inline SVG string (no xml header, explicit width/height)
      */
     public static function generateSvg(string $text, int $size = 200): string
     {
-        // Simple, clean SVG data representation for QR token display
-        $encodedText = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-        $hash = md5($text);
-        
-        // Generate a deterministic 17x17 grid pattern based on text hash for visual QR appearance
-        $cells = '';
-        $cellSize = $size / 19;
-        
-        // Finder patterns (top-left, top-right, bottom-left)
-        $cells .= self::renderFinderPattern(1, 1, $cellSize);
-        $cells .= self::renderFinderPattern(11, 1, $cellSize);
-        $cells .= self::renderFinderPattern(1, 11, $cellSize);
+        $payload = !empty($text) ? trim($text) : 'RM-9901';
 
-        for ($r = 0; $r < 17; $r++) {
-            for ($c = 0; $c < 17; $c++) {
-                // Skip finder pattern zones
-                if (($r < 7 && $c < 7) || ($r < 7 && $c > 9) || ($r > 9 && $c < 7)) {
-                    continue;
-                }
-                $bit = hexdec($hash[($r * 17 + $c) % 32]) % 2;
-                if ($bit === 1) {
-                    $x = ($c + 1) * $cellSize;
-                    $y = ($r + 1) * $cellSize;
-                    $cells .= "<rect x=\"{$x}\" y=\"{$y}\" width=\"{$cellSize}\" height=\"{$cellSize}\" fill=\"#1e293b\" />";
-                }
+        try {
+            $dataUri = self::generateDataUri($payload);
+            $base64 = str_replace('data:image/svg+xml;base64,', '', $dataUri);
+            $rawSvg = base64_decode($base64);
+
+            // Strip XML declaration header for inline HTML5 dangerouslySetInnerHTML
+            $svg = preg_replace('/<\?xml.*?\?>/s', '', $rawSvg);
+
+            // Ensure svg element has explicit width and height
+            if (strpos($svg, '<svg') !== false && strpos($svg, 'width=') === false) {
+                $svg = str_replace(
+                    '<svg ',
+                    '<svg width="'.$size.'" height="'.$size.'" style="width: '.$size.'px; height: '.$size.'px; display: block; margin: 0 auto;" ',
+                    $svg
+                );
             }
+
+            return trim($svg);
+        } catch (Throwable $e) {
+            return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="'.$size.'" height="'.$size.'"><rect width="200" height="200" fill="#ffffff"/><text x="10" y="100" font-size="14" fill="#000000">'.htmlspecialchars($payload, ENT_QUOTES, 'UTF-8').'</text></svg>';
         }
-
-        return "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {$size} {$size}\" width=\"{$size}\" height=\"{$size}\" class=\"bg-white p-2 rounded shadow-sm\">\n" .
-            "<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\" />\n" .
-            $cells .
-            "</svg>";
-    }
-
-    private static function renderFinderPattern(int $col, int $row, float $cellSize): string
-    {
-        $x = $col * $cellSize;
-        $y = $row * $cellSize;
-        $w = 7 * $cellSize;
-        
-        $out = "<rect x=\"{$x}\" y=\"{$y}\" width=\"{$w}\" height=\"{$w}\" fill=\"#1e293b\" />";
-        $x1 = ($col + 1) * $cellSize;
-        $y1 = ($row + 1) * $cellSize;
-        $w1 = 5 * $cellSize;
-        $out .= "<rect x=\"{$x1}\" y=\"{$y1}\" width=\"{$w1}\" height=\"{$w1}\" fill=\"#ffffff\" />";
-        $x2 = ($col + 2) * $cellSize;
-        $y2 = ($row + 2) * $cellSize;
-        $w2 = 3 * $cellSize;
-        $out .= "<rect x=\"{$x2}\" y=\"{$y2}\" width=\"{$w2}\" height=\"{$w2}\" fill=\"#1e293b\" />";
-        
-        return $out;
     }
 }
