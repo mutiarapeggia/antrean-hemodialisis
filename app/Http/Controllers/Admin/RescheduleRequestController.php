@@ -131,14 +131,28 @@ class RescheduleRequestController extends Controller
         }
 
         $validated = $request->validate([
-            'admin_notes' => 'required|string|max:500',
-        ], [
-            'admin_notes.required' => 'Alasan penolakan wajib diisi untuk menginformasikan pasien.',
+            'admin_notes' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500',
+            'rejection_reason' => 'nullable|string|max:500',
         ]);
+
+        $reason = $validated['admin_notes'] 
+            ?? $validated['reason'] 
+            ?? $validated['rejection_reason'] 
+            ?? $request->input('reason') 
+            ?? $request->input('admin_notes') 
+            ?? $request->input('rejection_reason');
+
+        if (empty(trim((string)$reason))) {
+            return back()->withErrors([
+                'reason' => 'Alasan penolakan wajib diisi untuk menginformasikan pasien.',
+                'admin_notes' => 'Alasan penolakan wajib diisi untuk menginformasikan pasien.',
+            ]);
+        }
 
         $rescheduleRequest->update([
             'status' => 'rejected',
-            'admin_notes' => $validated['admin_notes'],
+            'admin_notes' => trim($reason),
         ]);
 
         // Notify Patient
@@ -153,7 +167,7 @@ class RescheduleRequestController extends Controller
         AuditLog::create([
             'user_id' => $request->user()->id,
             'action' => 'RESCHEDULE_REJECTED',
-            'description' => "Admin rejected reschedule #{$rescheduleRequest->id} for patient {$rescheduleRequest->patient->user->name}. Reason: {$validated['admin_notes']}.",
+            'description' => "Admin rejected reschedule #{$rescheduleRequest->id} for patient {$rescheduleRequest->patient->user->name}. Reason: {$reason}.",
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);

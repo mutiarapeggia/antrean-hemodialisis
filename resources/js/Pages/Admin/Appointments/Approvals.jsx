@@ -16,10 +16,11 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
         admin_notes: '',
     });
 
-    // Form for Rejecting
-    const { data: rejectData, setData: setRejectData, post: postReject, processing: processingReject, reset: resetReject } = useForm({
+    // Form for Rejecting (Synchronized for both appointment reject & reschedule reject)
+    const { data: rejectData, setData: setRejectData, post: postReject, processing: processingReject, reset: resetReject, errors: rejectErrors } = useForm({
         reason: '',
         admin_notes: '',
+        rejection_reason: '',
     });
 
     // Form for Emergency Override Creation
@@ -47,6 +48,7 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
         setRejectData({
             reason: '',
             admin_notes: '',
+            rejection_reason: '',
         });
     };
 
@@ -87,7 +89,6 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
             });
         } else if (modalType === 'reject_reschedule') {
             postReject(route('admin.reschedule-requests.reject', selectedItem.id), {
-                data: { admin_notes: rejectData.reason || rejectData.admin_notes },
                 onSuccess: () => {
                     setModalType(null);
                     setSelectedItem(null);
@@ -499,12 +500,24 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
                                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Alasan Penolakan *</label>
                                 <textarea
                                     value={rejectData.reason}
-                                    onChange={(e) => setRejectData('reason', e.target.value)}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setRejectData({
+                                            reason: val,
+                                            admin_notes: val,
+                                            rejection_reason: val,
+                                        });
+                                    }}
                                     placeholder="Contoh: Kuota bed shift penuh atau kondisi belum sesuai..."
                                     rows="3"
                                     className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-semibold text-slate-900 focus:outline-none focus:border-rose-500"
                                     required
                                 ></textarea>
+                                {(rejectErrors.reason || rejectErrors.admin_notes) && (
+                                    <span className="text-xs text-rose-600 mt-1 block font-bold">
+                                        {rejectErrors.reason || rejectErrors.admin_notes}
+                                    </span>
+                                )}
                             </div>
 
                             <div className="flex justify-end space-x-3 pt-3 border-t border-slate-200">
