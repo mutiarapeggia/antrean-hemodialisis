@@ -277,4 +277,65 @@ class CheckInTest extends TestCase
             'action' => 'PATIENT_PROMOTED_AUTO',
         ]);
     }
+
+    public function test_check_in_shift_mismatch_returns_clear_warning_message(): void
+    {
+        $today = now()->format('Y-m-d');
+        $shift = 'siang';
+        $bed = '7';
+
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, $shift, $bed);
+
+        Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'admin_id' => $this->admin->id,
+            'appointment_date' => $today,
+            'start_time' => '12:00:00',
+            'end_time' => '16:00:00',
+            'shift' => $shift,
+            'bed_number' => $bed,
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token,
+        ]);
+
+        // Patient arrives at 08:00 AM (Pagi shift time window)
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => "{$today} 08:00:00",
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'status' => 'shift_mismatch',
+            'message' => 'Jadwal Anda terdaftar pada Shift Siang, silakan check-in pada jam shift yang sesuai.',
+        ]);
+    }
+
+    public function test_prevent_double_check_in_across_shifts_without_second_appointment(): void
+    {
+        $today = now()->format('Y-m-d');
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, 'pagi', '8');
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '8',
+            'status' => Appointment::STATUS_CHECKED_IN,
+            'qr_token' => $token,
+        ]);
+
+        // Attempt check-in again at 13:00:00 (Siang time)
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => "{$today} 13:00:00",
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJson([
+            'status' => 'already_checked_in',
+        ]);
+    }
 }

@@ -247,4 +247,24 @@ class AppointmentTest extends TestCase
             'cancellation_reason' => 'Ada keperluan keluarga mendesak',
         ]);
     }
+
+    public function test_patient_cannot_unilaterally_create_recurring_appointment_without_admin_approval(): void
+    {
+        $date = now()->addDays(7)->format('Y-m-d');
+
+        $response = $this->actingAs($this->patientUser)->post(route('patient.appointments.store'), [
+            'appointment_date' => $date,
+            'shift' => 'siang',
+            'bed_number' => '8',
+            'is_recurring' => true,
+        ]);
+
+        $response->assertSessionHas('success');
+
+        $app = Appointment::where('patient_id', $this->patient->id)->where('shift', 'siang')->first();
+        $this->assertNotNull($app);
+        $this->assertEquals('pending_approval', $app->status);
+        $this->assertEquals('pending_approval', $app->approval_status);
+        $this->assertFalse((bool) $app->is_recurring);
+    }
 }

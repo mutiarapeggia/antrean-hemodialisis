@@ -83,7 +83,7 @@ export default function PatientNotificationsIndex({ patient, announcements, noti
                                             onChange={(e) => setData('notification_preference', e.target.value)}
                                             className="text-blue-600 focus:ring-blue-500"
                                         />
-                                        <span>Hanya Email SMTP</span>
+                                        <span>Hanya Email</span>
                                     </label>
                                 </div>
                             </div>

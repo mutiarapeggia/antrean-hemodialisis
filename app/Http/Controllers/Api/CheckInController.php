@@ -36,13 +36,12 @@ class CheckInController extends Controller
             $simulatedAt = $request->input('simulated_at') ?? $request->input('check_in_time');
             $now = !empty($simulatedAt) ? Carbon::parse($simulatedAt) : now();
             $todayStr = $now->format('Y-m-d');
+            $arrivalHour = (int) $now->format('H');
+            $arrivalShift = ($arrivalHour < 12) ? 'pagi' : 'siang';
 
-            $appointment = null;
-
-            // 1. Search by Patient Medical Record Number (No. RM) or normalized candidates
+            // 1. Search Patient by Medical Record Number candidates
             $cleanRmCandidates = [$rawInput];
 
-            // Extract RM-XXXX pattern via regex
             if (preg_match('/(RM-?\d+(?:-\d+)?)/i', $rawInput, $matches)) {
                 $matched = strtoupper($matches[1]);
                 if (!str_contains($matched, 'RM-')) {
@@ -51,13 +50,11 @@ class CheckInController extends Controller
                 $cleanRmCandidates[] = $matched;
             }
 
-            // If digits only e.g. "9901" -> "RM-9901"
             if (preg_match('/^(\d+)$/', $rawInput, $matches)) {
                 $cleanRmCandidates[] = 'RM-' . $matches[1];
                 $cleanRmCandidates[] = 'RM' . $matches[1];
             }
 
-            // If "RM9901" -> "RM-9901"
             if (preg_match('/^RM(\d+)$/i', $rawInput, $matches)) {
                 $cleanRmCandidates[] = 'RM-' . $matches[1];
             }
@@ -70,42 +67,66 @@ class CheckInController extends Controller
                 })
                 ->first();
 
-            if ($patient) {
-                $appointment = Appointment::with(['patient.user'])
-                    ->where('patient_id', $patient->id)
-                    ->whereDate('appointment_date', $todayStr)
-                    ->whereIn('status', [
-                        Appointment::STATUS_SCHEDULED,
-                        Appointment::STATUS_CHECKED_IN,
-                        Appointment::STATUS_COMPLETED,
-                    ])
-                    ->lockForUpdate()
-                    ->first();
-            }
+            // 2. Fetch all appointments for today (excluding cancelled) with lockForUpdate
+            $todayAppointments = Appointment::with(['patient.user'])
+                ->where(function ($query) use ($patient, $rawInput) {
+                    if ($patient) {
+                        $query->where('patient_id', $patient->id);
+                    } else {
+                        $query->where('qr_token', $rawInput);
+                    }
+                })
+                ->whereDate('appointment_date', $todayStr)
+                ->where('status', '!=', Appointment::STATUS_CANCELLED)
+                ->lockForUpdate()
+                ->get();
 
-            // 2. Fallback: Search by exact qr_token with pessimistic locking
-            if (!$appointment) {
-                $appointment = Appointment::with(['patient.user'])
-                    ->where('qr_token', $rawInput)
-                    ->lockForUpdate()
-                    ->first();
-            }
-
-            if (!$appointment) {
+            if ($todayAppointments->isEmpty()) {
                 return response()->json([
                     'status' => 'not_found',
                     'message' => 'Tidak ada janji temu terdaftar untuk No. RM ini pada hari ini.',
                 ], 404);
             }
 
-            $appDateStr = $appointment->appointment_date->format('Y-m-d');
+            // Select scheduled appointment matching the current arrival shift
+            $appointment = $todayAppointments->first(function ($a) use ($arrivalShift) {
+                return $a->status === Appointment::STATUS_SCHEDULED && $a->shift === $arrivalShift;
+            });
 
-            // Check if appointment is for today
-            if ($appDateStr !== $todayStr) {
-                return response()->json([
-                    'status' => 'invalid_token',
-                    'message' => "Janji temu ini dijadwalkan untuk tanggal {$appDateStr}, bukan hari ini ({$todayStr}).",
-                ], 422);
+            // If no exact shift match, pick any scheduled appointment for today
+            if (!$appointment) {
+                $appointment = $todayAppointments->firstWhere('status', Appointment::STATUS_SCHEDULED);
+            }
+
+            // If all appointments for today are already checked in or completed, prevent double check-in
+            if (!$appointment) {
+                $checkedInApp = $todayAppointments->first(function ($a) {
+                    return in_array($a->status, [Appointment::STATUS_CHECKED_IN, Appointment::STATUS_COMPLETED]);
+                });
+
+                if ($checkedInApp) {
+                    $patientUser = $checkedInApp->patient->user ?? null;
+                    $patientName = $patientUser ? $patientUser->name : 'Pasien';
+                    $rm = $checkedInApp->patient->medical_record_number ?? '-';
+                    $bedStr = $checkedInApp->bed_number ? (str_starts_with($checkedInApp->bed_number, 'Bed') ? $checkedInApp->bed_number : "Bed {$checkedInApp->bed_number}") : 'Bed Utama';
+
+                    return response()->json([
+                        'status' => 'already_checked_in',
+                        'message' => 'Pasien Dengan No. RM Ini Sudah Pernah Check-In!',
+                        'patient_name' => $patientName,
+                        'medical_record_number' => $rm,
+                        'bed_number' => $bedStr,
+                        'shift' => ucfirst($checkedInApp->shift),
+                        'data' => [
+                            'patient_name' => $patientName,
+                            'rm_number' => $rm,
+                            'shift' => ucfirst($checkedInApp->shift),
+                            'bed_number' => $bedStr,
+                        ],
+                    ], 400);
+                }
+
+                $appointment = $todayAppointments->first();
             }
 
             $patientUser = $appointment->patient->user ?? null;
@@ -114,7 +135,7 @@ class CheckInController extends Controller
             $rm = $appointment->patient->medical_record_number ?? '-';
             $bedStr = $appointment->bed_number ? (str_starts_with($appointment->bed_number, 'Bed') ? $appointment->bed_number : "Bed {$appointment->bed_number}") : 'Bed Utama';
 
-            // Check duplicate check-in
+            // Check duplicate check-in for this specific appointment
             if ($appointment->status === Appointment::STATUS_CHECKED_IN || $appointment->status === Appointment::STATUS_COMPLETED) {
                 return response()->json([
                     'status' => 'already_checked_in',
@@ -132,7 +153,24 @@ class CheckInController extends Controller
                 ], 400);
             }
 
+            // Check Shift Match: If registered shift does not match current arrival shift
+            if ($appointment->status === Appointment::STATUS_SCHEDULED && $appointment->shift !== $arrivalShift) {
+                return response()->json([
+                    'status' => 'shift_mismatch',
+                    'message' => 'Jadwal Anda terdaftar pada Shift ' . ucfirst($appointment->shift) . ', silakan check-in pada jam shift yang sesuai.',
+                    'patient_name' => $patientName,
+                    'medical_record_number' => $rm,
+                    'shift' => ucfirst($appointment->shift),
+                    'data' => [
+                        'patient_name' => $patientName,
+                        'rm_number' => $rm,
+                        'registered_shift' => ucfirst($appointment->shift),
+                    ],
+                ], 422);
+            }
+
             // Check 15-Minute Tolerance Rule
+            $appDateStr = $appointment->appointment_date->format('Y-m-d');
             $shiftStart = Carbon::parse("{$appDateStr} {$appointment->start_time}");
             $cutoffTime = $shiftStart->copy()->addMinutes(15);
 

@@ -595,13 +595,16 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">No. Bed *</label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={emergencyData.bed_number}
                                         onChange={(e) => setEmergencyData('bed_number', e.target.value)}
                                         className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-rose-500"
                                         required
-                                    />
+                                    >
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                            <option key={n} value={String(n)}>Bed #{n}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
 
