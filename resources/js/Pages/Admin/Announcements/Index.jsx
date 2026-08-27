@@ -21,7 +21,7 @@ export default function AnnouncementsIndex({ announcements, filters }) {
     const { data, setData, post, put, processing, errors, reset } = useForm({
         title: '',
         content: '',
-        publish_date: new Date().toISOString().split('T')[0],
+        publish_date: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }),
         is_active: true,
     });
 

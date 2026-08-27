@@ -153,11 +153,13 @@ export default function KioskIndex() {
                 const data = error.response.data;
                 if (error.response.status === 422) {
                     setResult({
-                        type: 'error',
-                        title: data.message || 'Shift telah berakhir. Silakan hubungi petugas medis.',
+                        type: 'late',
+                        status: data.status || 'shift_ended',
+                        title: data.message || 'Check-In Ditolak: Shift Anda telah berakhir. Silakan hubungi petugas medis.',
                         patient_name: data.patient_name || data.data?.patient_name,
                         rm_number: data.medical_record_number || data.data?.rm_number,
                         shift: data.shift || data.data?.shift,
+                        shift_ended: true,
                     });
                 } else if (data.status === 'already_checked_in') {
                     setResult({
@@ -231,7 +233,7 @@ export default function KioskIndex() {
                 <div className="flex items-center space-x-2 bg-slate-100 border border-slate-200/80 px-4 py-2 rounded-xl">
                     <Clock className="w-4 h-4 text-blue-600" />
                     <span className="text-sm font-mono font-black text-slate-800">
-                        {new Date().toLocaleTimeString('id-ID')} WIB
+                        {new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit' })} WIB
                     </span>
                 </div>
             </header>
@@ -260,6 +262,14 @@ export default function KioskIndex() {
                             )}
                             {result.shift && (
                                 <p className="text-xs font-bold text-slate-700 mt-1">Shift {result.shift} • {result.bed_number}</p>
+                            )}
+                            {result.shift_ended && (
+                                <div className="mt-3 flex justify-center">
+                                    <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black uppercase bg-rose-100 text-rose-900 border border-rose-300">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span>Status: Shift Anda Telah Berakhir</span>
+                                    </span>
+                                </div>
                             )}
                             {result.is_late !== undefined && (
                                 <div className="mt-3 flex justify-center">

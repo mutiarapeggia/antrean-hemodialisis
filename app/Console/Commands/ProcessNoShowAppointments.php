@@ -16,8 +16,8 @@ class ProcessNoShowAppointments extends Command
 
     public function handle(): int
     {
-        $dateStr = $this->option('date') ?: now()->format('Y-m-d');
-        $currentTime = now();
+        $dateStr = $this->option('date') ?: now()->setTimezone('Asia/Jakarta')->format('Y-m-d');
+        $currentTime = now()->setTimezone('Asia/Jakarta');
 
         $processedCount = 0;
 
@@ -27,7 +27,7 @@ class ProcessNoShowAppointments extends Command
         ];
 
         foreach ($shifts as $shiftKey => $startTime) {
-            $shiftStart = Carbon::parse("{$dateStr} {$startTime}");
+            $shiftStart = Carbon::parse("{$dateStr} {$startTime}", 'Asia/Jakarta');
             $cutoffTime = $shiftStart->copy()->addMinutes(15);
 
             // If processing for today, only run if cutoff has passed. If processing for past date, always run.

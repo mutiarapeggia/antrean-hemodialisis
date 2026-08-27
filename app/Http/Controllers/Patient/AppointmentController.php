@@ -20,12 +20,27 @@ class AppointmentController extends Controller
         $user = $request->user();
         $patient = Patient::where('user_id', $user->id)->firstOrFail();
 
+        $now = now()->setTimezone('Asia/Jakarta');
+        $todayStr = $now->format('Y-m-d');
+
         $appointments = Appointment::with(['latestRescheduleRequest'])
             ->where('patient_id', $patient->id)
             ->orderBy('appointment_date', 'desc')
             ->orderBy('start_time', 'asc')
             ->get()
-            ->map(function ($app) use ($patient) {
+            ->map(function ($app) use ($patient, $now, $todayStr) {
+                // Auto-sync No-Show for expired shift appointments
+                if (in_array($app->status, [Appointment::STATUS_SCHEDULED, 'approved', 'pending_approval'])) {
+                    $appDateStr = $app->appointment_date ? $app->appointment_date->format('Y-m-d') : '';
+                    $shiftStartStr = ($app->shift === 'pagi') ? '07:00:00' : '12:00:00';
+                    $cutoff = \Carbon\Carbon::parse("{$appDateStr} {$shiftStartStr}", 'Asia/Jakarta')->addMinutes(15);
+
+                    if ($appDateStr < $todayStr || ($appDateStr === $todayStr && $now->gt($cutoff))) {
+                        $app->update(['status' => Appointment::STATUS_NO_SHOW]);
+                        $app->status = Appointment::STATUS_NO_SHOW;
+                    }
+                }
+
                 if (empty($app->qr_token)) {
                     $app->qr_token = Appointment::generateHmacQrToken(
                         $app->patient_id,

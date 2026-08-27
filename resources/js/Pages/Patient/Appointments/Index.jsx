@@ -41,8 +41,9 @@ export default function Index({ appointments, patient, availableBeds = [] }) {
         return allowedStatuses.includes(app.status) || app.approval_status === 'approved';
     };
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const getWibDateStr = (dateObj = new Date()) => new Date(dateObj).toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' });
+    const todayStr = getWibDateStr();
+    const tomorrowStr = getWibDateStr(new Date(Date.now() + 86400000));
 
     const bookingForm = useForm({
         appointment_date: todayStr,

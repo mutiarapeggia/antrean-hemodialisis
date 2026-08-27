@@ -22,7 +22,7 @@ class RescheduleRequest extends Model
     ];
 
     protected $casts = [
-        'requested_date' => 'date',
+        'requested_date' => 'date:Y-m-d',
     ];
 
     public function appointment(): BelongsTo

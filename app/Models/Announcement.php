@@ -19,7 +19,7 @@ class Announcement extends Model
     ];
 
     protected $casts = [
-        'publish_date' => 'date',
+        'publish_date' => 'date:Y-m-d',
         'is_active' => 'boolean',
     ];
 

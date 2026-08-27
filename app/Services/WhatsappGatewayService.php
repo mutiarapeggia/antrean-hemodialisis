@@ -72,6 +72,17 @@ class WhatsappGatewayService
                 ]);
 
                 if ($response->successful()) {
+                    $json = $response->json();
+                    
+                    // Fonnte returns HTTP 200 even if device is disconnected (status: false)
+                    if (is_array($json) && isset($json['status']) && ($json['status'] === false || $json['status'] === 'false')) {
+                        $reason = $json['reason'] ?? 'Perangkat WA terputus atau token tidak valid.';
+                        try {
+                            Log::error("[WhatsApp Gateway Error] Target {$formattedPhone} failed: {$reason}");
+                        } catch (Throwable $e) {}
+                        return false;
+                    }
+
                     try {
                         Log::info("[WhatsApp Gateway Success] Message sent to {$formattedPhone}");
                     } catch (Throwable $e) {}

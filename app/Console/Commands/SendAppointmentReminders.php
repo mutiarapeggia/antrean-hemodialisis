@@ -29,11 +29,11 @@ class SendAppointmentReminders extends Command
      */
     public function handle(): int
     {
-        $now = now();
+        $now = now()->setTimezone('Asia/Jakarta');
         $tomorrowDate = $now->copy()->addDay()->format('Y-m-d');
         $todayDate = $now->format('Y-m-d');
 
-        $this->info("Checking appointment reminders at {$now->toDateTimeString()}...");
+        $this->info("Checking appointment reminders at {$now->toDateTimeString()} WIB...");
 
         // 1. Send 24-Hour (H-1) Reminders
         $tomorrowAppointments = Appointment::with(['patient.user'])
@@ -62,7 +62,7 @@ class SendAppointmentReminders extends Command
 
         $count1h = 0;
         foreach ($todayAppointments as $app) {
-            $shiftStart = Carbon::parse("{$todayDate} {$app->start_time}");
+            $shiftStart = Carbon::parse("{$todayDate} {$app->start_time}", 'Asia/Jakarta');
             $diffInMinutes = $now->diffInMinutes($shiftStart, false);
 
             // If shift starts in 0 to 90 minutes from now

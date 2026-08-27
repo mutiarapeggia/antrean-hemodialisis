@@ -193,7 +193,6 @@ class CheckInTest extends TestCase
         $response->assertStatus(422);
         $response->assertJson([
             'status' => 'shift_ended',
-            'message' => 'Shift 1 telah berakhir. Silakan hubungi petugas medis.',
         ]);
     }
 

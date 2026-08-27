@@ -313,10 +313,21 @@ class AppointmentController extends Controller
                     'is_occupied' => !is_null($app),
                     'appointment' => $app ? [
                         'id' => $app->id,
+                        'patient_id' => $app->patient_id,
                         'patient_name' => $app->patient->user->name ?? 'Pasien',
                         'medical_record_number' => $app->patient->medical_record_number ?? '',
                         'status' => $app->status,
                         'emergency_override' => $app->emergency_override,
+                        'appointment_date' => $app->appointment_date,
+                        'shift' => $app->shift,
+                        'bed_number' => $app->bed_number,
+                        'cancellation_reason' => $app->cancellation_reason,
+                        'patient' => [
+                            'medical_record_number' => $app->patient->medical_record_number ?? '',
+                            'user' => [
+                                'name' => $app->patient->user->name ?? 'Pasien',
+                            ],
+                        ],
                     ] : null,
                 ];
             }

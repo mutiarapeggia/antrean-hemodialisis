@@ -308,10 +308,17 @@ class CheckInController extends Controller
 
             // 1. If scan is AFTER shift end time (> 11:00 or > 16:00) -> Reject HTTP 422
             if ($now->gt($shiftEnd)) {
-                $shiftNumStr = ($appointment->shift === 'pagi') ? '1' : '2';
+                if (in_array($appointment->status, [Appointment::STATUS_SCHEDULED, 'approved', 'pending_approval'])) {
+                    $appointment->update([
+                        'status' => Appointment::STATUS_NO_SHOW,
+                    ]);
+                }
+
+                $shiftNumStr = ($appointment->shift === 'pagi') ? '1 (Pagi)' : '2 (Siang)';
+                $shiftTimeRangeStr = ($appointment->shift === 'pagi') ? '07.00 - 11.00' : '12.00 - 16.00';
                 return response()->json([
                     'status' => 'shift_ended',
-                    'message' => "Shift {$shiftNumStr} telah berakhir. Silakan hubungi petugas medis.",
+                    'message' => "Check-In Ditolak: Jam operasional Shift {$shiftNumStr} ({$shiftTimeRangeStr} WIB) telah berakhir pada jam {$shiftEnd->format('H:i')} WIB. Silakan hubungi petugas medis.",
                     'patient_name' => $patientName,
                     'medical_record_number' => $rm,
                     'shift' => ucfirst($appointment->shift),
@@ -319,6 +326,7 @@ class CheckInController extends Controller
                         'patient_name' => $patientName,
                         'rm_number' => $rm,
                         'shift' => ucfirst($appointment->shift),
+                        'shift_ended' => true,
                     ],
                 ], 422);
             }

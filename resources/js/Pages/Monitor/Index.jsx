@@ -3,11 +3,11 @@ import { Head, Link } from '@inertiajs/react';
 import { Activity, Clock, QrCode, RefreshCw, CheckCircle2, UserCheck, Calendar, Bed } from 'lucide-react';
 
 export default function MonitorIndex({ appointments = [], stats = {}, todayDate }) {
-    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID'));
+    const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
     useEffect(() => {
         const timer = setInterval(() => {
-            setCurrentTime(new Date().toLocaleTimeString('id-ID'));
+            setCurrentTime(new Date().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', second: '2-digit' }));
         }, 1000);
         return () => clearInterval(timer);
     }, []);

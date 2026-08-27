@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function QueueIndex({ appointments = [], auditLogs = [], stats = {}, filters = {} }) {
-    const [date, setDate] = useState(filters.date || new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(filters.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }));
     const [shift, setShift] = useState(filters.shift || 'all');
     const [status, setStatus] = useState(filters.status || 'all');
     const [selectedAppointment, setSelectedAppointment] = useState(null);

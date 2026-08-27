@@ -24,7 +24,6 @@ import {
 } from 'lucide-react';
 
 export default function Index({ appointments = [], patients = [], availableBeds = [], shiftGrid = { pagi: [], siang: [] }, stats = {}, filters = {} }) {
-    const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'table'
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingAppointment, setEditingAppointment] = useState(null);
     const [cancellingAppointment, setCancellingAppointment] = useState(null);
@@ -33,7 +32,7 @@ export default function Index({ appointments = [], patients = [], availableBeds 
 
     // Filter Form
     const filterForm = useForm({
-        date: filters.date || new Date().toISOString().split('T')[0],
+        date: filters.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }),
         shift: filters.shift || '',
         status: filters.status || '',
         search: filters.search || '',
@@ -48,7 +47,7 @@ export default function Index({ appointments = [], patients = [], availableBeds 
     // Create Form
     const createForm = useForm({
         patient_id: '',
-        appointment_date: filters.date || new Date().toISOString().split('T')[0],
+        appointment_date: filters.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }),
         shift: 'pagi',
         bed_number: '1',
         is_recurring: false,
@@ -86,6 +85,7 @@ export default function Index({ appointments = [], patients = [], availableBeds 
     });
 
     const openEditModal = (app) => {
+        if (!app) return;
         setEditingAppointment(app);
         editForm.setData({
             appointment_date: app.appointment_date ? String(app.appointment_date).substring(0, 10) : '',
@@ -176,7 +176,7 @@ export default function Index({ appointments = [], patients = [], availableBeds 
     };
 
     return (
-        <AdminLayout title="Penjadwalan Janji Temu & Shift Grid">
+        <AdminLayout title="Penjadwalan Janji Temu & Shift Grid Bed">
             <Head title="Janji Temu - Admin" />
 
             {/* Header Stats */}
@@ -222,7 +222,7 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                 </div>
             </div>
 
-            {/* Filter & View Switcher Bar */}
+            {/* Filter Bar */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 shadow-xs">
                 <div className="flex flex-wrap items-center gap-3 flex-1">
                     {/* Date Picker */}
@@ -245,23 +245,6 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                         <option value="siang">Siang (12:00 - 16:00)</option>
                     </select>
 
-                    {/* Status Filter */}
-                    <select
-                        value={filterForm.data.status}
-                        onChange={(e) => handleFilterChange('status', e.target.value)}
-                        className="bg-slate-50 border border-slate-300 rounded-xl pl-4 pr-10 py-2.5 text-slate-900 text-sm font-bold cursor-pointer hover:border-slate-400 focus:outline-none focus:border-blue-600 shadow-xs min-w-[170px]"
-                    >
-                        <option value="">Semua Status</option>
-                        <option value="pending_approval">Pending Approval</option>
-                        <option value="approved">Approved</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="checked-in">Checked-In / Arrived</option>
-                        <option value="in-progress">In-Progress</option>
-                        <option value="completed">Completed</option>
-                        <option value="no-show">No-Show</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
-
                     {/* Search Input */}
                     <div className="relative flex-1 min-w-[220px] flex items-center">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -276,30 +259,6 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                 </div>
 
                 <div className="flex items-center space-x-3">
-                    {/* Mode View Switcher */}
-                    <div className="flex items-center space-x-1 border border-slate-300 rounded-xl p-1 bg-slate-100">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('grid')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center space-x-1.5 ${
-                                activeTab === 'grid' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <Layers className="w-3.5 h-3.5" />
-                            <span>Grid Bed</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('table')}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center space-x-1.5 ${
-                                activeTab === 'table' ? 'bg-white text-blue-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                        >
-                            <ListFilter className="w-3.5 h-3.5" />
-                            <span>Daftar Tabel ({appointmentsList.length})</span>
-                        </button>
-                    </div>
-
                     {/* Create Button */}
                     <button
                         onClick={() => setIsCreateOpen(true)}
@@ -311,250 +270,205 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                 </div>
             </div>
 
-            {/* CONTENT AREA: GRID VIEW OR TABLE VIEW */}
-            {activeTab === 'grid' ? (
-                <div className="space-y-6">
-                    {/* Shift Pagi Grid */}
-                    {(!filterForm.data.shift || filterForm.data.shift === 'pagi') && (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-                                <h3 className="text-lg font-black text-slate-900 flex items-center space-x-2">
-                                    <Bed className="w-5 h-5 text-amber-600" />
-                                    <span>Shift Pagi (07:00 - 11:00 WIB)</span>
-                                </h3>
-                                <span className="text-xs font-mono font-bold text-slate-500">Total 10 Bed Utama</span>
-                            </div>
+            {/* BED GRID DISPLAY */}
+            <div className="space-y-6">
+                {/* Shift Pagi Grid */}
+                {(!filterForm.data.shift || filterForm.data.shift === 'pagi') && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+                            <h3 className="text-lg font-black text-slate-900 flex items-center space-x-2">
+                                <Bed className="w-5 h-5 text-amber-600" />
+                                <span>Shift Pagi (07:00 - 11:00 WIB)</span>
+                            </h3>
+                            <span className="text-xs font-mono font-bold text-slate-500">
+                                {shiftGrid.pagi.filter(i => i.is_occupied).length} / 10 Bed Terisi
+                            </span>
+                        </div>
 
-                            {filterForm.data.status && shiftGrid.pagi.filter(i => i.is_occupied).length === 0 && (
-                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900 flex items-center space-x-2">
-                                    <ShieldAlert className="w-4 h-4 text-blue-600 shrink-0" />
-                                    <span>Info: Tidak ada pasien dengan status <strong>"{getStatusLabel(filterForm.data.status)}"</strong> pada Shift Pagi untuk tanggal <strong>{filterForm.data.date}</strong>.</span>
-                                </div>
-                            )}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                            {shiftGrid.pagi.map((item) => (
+                                <div
+                                    key={`pagi-bed-${item.bed_number}`}
+                                    className={`p-3 rounded-xl border flex flex-col justify-between transition-all min-h-[125px] ${
+                                        item.is_occupied
+                                            ? (item.appointment?.emergency_override ? 'bg-rose-50 border-rose-400 text-rose-950 shadow-xs' : 'bg-amber-50 border-amber-300 text-amber-950')
+                                            : 'bg-slate-50 border-slate-200 hover:border-blue-500 cursor-pointer'
+                                    }`}
+                                    onClick={() => !item.is_occupied && openCreateForBed('pagi', item.bed_number)}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-700">
+                                            {item.bed_number ? (item.bed_number.startsWith('Bed') ? item.bed_number : `Bed ${item.bed_number}`) : 'Bed ?'}
+                                        </span>
+                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                            item.is_occupied 
+                                                ? (item.appointment?.emergency_override ? 'bg-rose-600 text-white animate-pulse' : 'bg-amber-200 text-amber-900') 
+                                                : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                            {item.is_occupied ? (item.appointment?.emergency_override ? 'EMERGENCY' : 'Terisi') : 'Kosong'}
+                                        </span>
+                                    </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                                {shiftGrid.pagi.map((item) => (
-                                    <div
-                                        key={`pagi-bed-${item.bed_number}`}
-                                        className={`p-3 rounded-xl border flex flex-col justify-between transition-all min-h-[110px] ${
-                                            item.is_occupied
-                                                ? (item.appointment?.emergency_override ? 'bg-rose-50 border-rose-400 text-rose-950 shadow-xs' : 'bg-amber-50 border-amber-300 text-amber-950')
-                                                : 'bg-slate-50 border-slate-200 hover:border-blue-500 cursor-pointer'
-                                        }`}
-                                        onClick={() => !item.is_occupied && openCreateForBed('pagi', item.bed_number)}
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-700">
-                                                {item.bed_number ? (item.bed_number.startsWith('Bed') ? item.bed_number : `Bed ${item.bed_number}`) : 'Bed ?'}
-                                            </span>
-                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                item.is_occupied 
-                                                    ? (item.appointment?.emergency_override ? 'bg-rose-600 text-white animate-pulse' : 'bg-amber-200 text-amber-900') 
-                                                    : 'bg-emerald-100 text-emerald-800'
-                                            }`}>
-                                                {item.is_occupied ? (item.appointment?.emergency_override ? 'EMERGENCY' : 'Terisi') : 'Kosong'}
-                                            </span>
-                                        </div>
-
-                                        {item.is_occupied && item.appointment ? (
-                                            <div className="space-y-1">
-                                                <div className="flex items-center space-x-1">
-                                                    <p className="text-xs font-black text-slate-900 truncate" title={item.appointment.patient_name}>
-                                                        {item.appointment.patient_name}
-                                                    </p>
-                                                    {item.appointment.emergency_override && (
-                                                        <span className="px-1 py-0.2 text-[8px] font-black bg-rose-600 text-white rounded shrink-0">
-                                                            DARURAT
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="text-[10px] font-mono font-bold text-blue-700">
-                                                    {item.appointment.medical_record_number}
+                                    {item.is_occupied && item.appointment ? (
+                                        <div className="space-y-1.5 pt-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-black text-slate-900 truncate max-w-[110px]" title={item.appointment.patient_name}>
+                                                    {item.appointment.patient_name}
                                                 </p>
-                                                <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                                    getStatusBadgeClass(item.appointment.status)
-                                                }`}>
+                                                {item.appointment.emergency_override && (
+                                                    <span className="px-1 py-0.2 text-[8px] font-black bg-rose-600 text-white rounded shrink-0">
+                                                        DARURAT
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] font-mono font-bold text-blue-700">
+                                                {item.appointment.medical_record_number}
+                                            </p>
+                                            
+                                            <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-200/80">
+                                                <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${getStatusBadgeClass(item.appointment.status)}`}>
                                                     {item.appointment.status}
                                                 </span>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-2">
-                                                <span className="text-xs text-slate-500 font-bold block">+ Kosong</span>
-                                                <span className="text-[9px] text-blue-600 font-extrabold">Klik Booking</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Shift Siang Grid */}
-                    {(!filterForm.data.shift || filterForm.data.shift === 'siang') && (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-                                <h3 className="text-lg font-black text-slate-900 flex items-center space-x-2">
-                                    <Bed className="w-5 h-5 text-indigo-600" />
-                                    <span>Shift Siang (12:00 - 16:00 WIB)</span>
-                                </h3>
-                                <span className="text-xs font-mono font-bold text-slate-500">Total 10 Bed Utama</span>
-                            </div>
-
-                            {filterForm.data.status && shiftGrid.siang.filter(i => i.is_occupied).length === 0 && (
-                                <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 flex items-center space-x-2">
-                                    <ShieldAlert className="w-4 h-4 text-indigo-600 shrink-0" />
-                                    <span>Info: Tidak ada pasien dengan status <strong>"{getStatusLabel(filterForm.data.status)}"</strong> pada Shift Siang untuk tanggal <strong>{filterForm.data.date}</strong>.</span>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-                                {shiftGrid.siang.map((item) => (
-                                    <div
-                                        key={`siang-bed-${item.bed_number}`}
-                                        className={`p-3 rounded-xl border flex flex-col justify-between transition-all min-h-[110px] ${
-                                            item.is_occupied
-                                                ? (item.appointment?.emergency_override ? 'bg-rose-50 border-rose-400 text-rose-950 shadow-xs' : 'bg-indigo-50 border-indigo-300 text-indigo-950')
-                                                : 'bg-slate-50 border-slate-200 hover:border-blue-500 cursor-pointer'
-                                        }`}
-                                        onClick={() => !item.is_occupied && openCreateForBed('siang', item.bed_number)}
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-700">
-                                                {item.bed_number ? (item.bed_number.startsWith('Bed') ? item.bed_number : `Bed ${item.bed_number}`) : 'Bed ?'}
-                                            </span>
-                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                                                item.is_occupied 
-                                                    ? (item.appointment?.emergency_override ? 'bg-rose-600 text-white animate-pulse' : 'bg-indigo-200 text-indigo-900') 
-                                                    : 'bg-emerald-100 text-emerald-800'
-                                            }`}>
-                                                {item.is_occupied ? (item.appointment?.emergency_override ? 'EMERGENCY' : 'Terisi') : 'Kosong'}
-                                            </span>
-                                        </div>
-
-                                        {item.is_occupied && item.appointment ? (
-                                            <div className="space-y-1">
-                                                <div className="flex items-center space-x-1">
-                                                    <p className="text-xs font-black text-slate-900 truncate" title={item.appointment.patient_name}>
-                                                        {item.appointment.patient_name}
-                                                    </p>
-                                                    {item.appointment.emergency_override && (
-                                                        <span className="px-1 py-0.2 text-[8px] font-black bg-rose-600 text-white rounded shrink-0">
-                                                            DARURAT
-                                                        </span>
-                                                    )}
+                                                <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditModal(item.appointment)}
+                                                        className="p-1 text-slate-600 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                                        title="Edit Janji Temu"
+                                                    >
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCancellingAppointment(item.appointment)}
+                                                        className="p-1 text-slate-600 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
+                                                        title="Batalkan"
+                                                    >
+                                                        <XCircle className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDelete(item.appointment.id)}
+                                                        className="p-1 text-slate-600 hover:text-rose-600 hover:bg-rose-100 rounded transition-colors"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
                                                 </div>
-                                                <p className="text-[10px] font-mono font-bold text-blue-700">
-                                                    {item.appointment.medical_record_number}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-2">
+                                            <span className="text-xs text-slate-500 font-bold block">+ Kosong</span>
+                                            <span className="text-[9px] text-blue-600 font-extrabold">Klik Booking</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Shift Siang Grid */}
+                {(!filterForm.data.shift || filterForm.data.shift === 'siang') && (
+                    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+                            <h3 className="text-lg font-black text-slate-900 flex items-center space-x-2">
+                                <Bed className="w-5 h-5 text-indigo-600" />
+                                <span>Shift Siang (12:00 - 16:00 WIB)</span>
+                            </h3>
+                            <span className="text-xs font-mono font-bold text-slate-500">
+                                {shiftGrid.siang.filter(i => i.is_occupied).length} / 10 Bed Terisi
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                            {shiftGrid.siang.map((item) => (
+                                <div
+                                    key={`siang-bed-${item.bed_number}`}
+                                    className={`p-3 rounded-xl border flex flex-col justify-between transition-all min-h-[125px] ${
+                                        item.is_occupied
+                                            ? (item.appointment?.emergency_override ? 'bg-rose-50 border-rose-400 text-rose-950 shadow-xs' : 'bg-indigo-50 border-indigo-300 text-indigo-950')
+                                            : 'bg-slate-50 border-slate-200 hover:border-blue-500 cursor-pointer'
+                                    }`}
+                                    onClick={() => !item.is_occupied && openCreateForBed('siang', item.bed_number)}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-mono font-black uppercase tracking-wider text-slate-700">
+                                            {item.bed_number ? (item.bed_number.startsWith('Bed') ? item.bed_number : `Bed ${item.bed_number}`) : 'Bed ?'}
+                                        </span>
+                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                            item.is_occupied 
+                                                ? (item.appointment?.emergency_override ? 'bg-rose-600 text-white animate-pulse' : 'bg-indigo-200 text-indigo-900') 
+                                                : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                            {item.is_occupied ? (item.appointment?.emergency_override ? 'EMERGENCY' : 'Terisi') : 'Kosong'}
+                                        </span>
+                                    </div>
+
+                                    {item.is_occupied && item.appointment ? (
+                                        <div className="space-y-1.5 pt-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-black text-slate-900 truncate max-w-[110px]" title={item.appointment.patient_name}>
+                                                    {item.appointment.patient_name}
                                                 </p>
-                                                <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                                    getStatusBadgeClass(item.appointment.status)
-                                                }`}>
+                                                {item.appointment.emergency_override && (
+                                                    <span className="px-1 py-0.2 text-[8px] font-black bg-rose-600 text-white rounded shrink-0">
+                                                        DARURAT
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] font-mono font-bold text-blue-700">
+                                                {item.appointment.medical_record_number}
+                                            </p>
+
+                                            <div className="flex items-center justify-between gap-1 pt-1.5 border-t border-slate-200/80">
+                                                <span className={`inline-block text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${getStatusBadgeClass(item.appointment.status)}`}>
                                                     {item.appointment.status}
                                                 </span>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-2">
-                                                <span className="text-xs text-slate-500 font-bold block">+ Kosong</span>
-                                                <span className="text-[9px] text-blue-600 font-extrabold">Klik Booking</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                /* TABEL DAFTAR JANJI TEMU */
-                <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-                    <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
-                        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
-                            Hasil Filter Tabel ({appointmentsList.length} Record)
-                        </h3>
-                    </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-700">
-                            <thead className="bg-slate-100 text-xs uppercase font-extrabold text-slate-600 border-b border-slate-200">
-                                <tr>
-                                    <th className="px-5 py-3.5">ID</th>
-                                    <th className="px-5 py-3.5">Tanggal & Shift</th>
-                                    <th className="px-5 py-3.5">Pasien & No. RM</th>
-                                    <th className="px-5 py-3.5">Nomor Bed</th>
-                                    <th className="px-5 py-3.5">Status</th>
-                                    <th className="px-5 py-3.5 text-right">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 font-medium">
-                                {appointmentsList.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="6" className="text-center py-12 text-slate-400 font-bold">
-                                            Tidak ada data janji temu yang sesuai dengan kriteria filter saat ini.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    appointmentsList.map((app) => (
-                                        <tr key={app.id} className="hover:bg-slate-50/80 transition-colors">
-                                            <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">
-                                                #{app.id}
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <span className="font-bold text-slate-900 block">
-                                                    {app.appointment_date ? String(app.appointment_date).substring(0, 10) : '-'}
-                                                </span>
-                                                <span className="text-xs font-semibold text-blue-600 capitalize">
-                                                    Shift {app.shift} ({app.shift === 'pagi' ? '07:00-11:00' : '12:00-16:00'})
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <span className="font-extrabold text-slate-900 block">
-                                                    {app.patient?.user?.name || 'Pasien'}
-                                                </span>
-                                                <span className="font-mono text-xs font-bold text-slate-500">
-                                                    {app.patient?.medical_record_number || '-'}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
-                                                    Bed {app.bed_number ? String(app.bed_number).replace('Bed ', '') : '-'}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-4">
-                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${getStatusBadgeClass(app.status)}`}>
-                                                    {app.status}
-                                                </span>
-                                            </td>
-                                            <td className="px-5 py-4 text-right space-x-2">
-                                                <button
-                                                    onClick={() => openEditModal(app)}
-                                                    className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                                    title="Edit Janji Temu"
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => setCancellingAppointment(app)}
-                                                    className="p-2 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
-                                                    title="Batalkan"
-                                                >
-                                                    <XCircle className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(app.id)}
-                                                    className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
-                                                    title="Hapus"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                                <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditModal(item.appointment)}
+                                                        className="p-1 text-slate-600 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
+                                                        title="Edit Janji Temu"
+                                                    >
+                                                        <Edit className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCancellingAppointment(item.appointment)}
+                                                        className="p-1 text-slate-600 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
+                                                        title="Batalkan"
+                                                    >
+                                                        <XCircle className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDelete(item.appointment.id)}
+                                                        className="p-1 text-slate-600 hover:text-rose-600 hover:bg-rose-100 rounded transition-colors"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-2">
+                                            <span className="text-xs text-slate-500 font-bold block">+ Kosong</span>
+                                            <span className="text-[9px] text-blue-600 font-extrabold">Klik Booking</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
+
 
             {/* MODAL PEMBUATAN JANJI TEMU */}
             {isCreateOpen && (
@@ -625,6 +539,26 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                                         <option key={num} value={String(num)}>Bed {num}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                            {/* Checkbox Emergency Override */}
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+                                <div>
+                                    <label htmlFor="create_emergency_override" className="text-xs font-black text-rose-900 cursor-pointer flex items-center gap-1.5">
+                                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                        <span>Emergency Override (Kasus Darurat Medis)</span>
+                                    </label>
+                                    <p className="text-[11px] text-rose-700 font-medium mt-0.5">
+                                        Mengabaikan kuota penuh & memindahkan pasien reguler otomatis jika Bed terisi.
+                                    </p>
+                                </div>
+                                <input
+                                    id="create_emergency_override"
+                                    type="checkbox"
+                                    checked={createForm.data.emergency_override}
+                                    onChange={(e) => createForm.setData('emergency_override', e.target.checked)}
+                                    className="w-5 h-5 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer"
+                                />
                             </div>
 
                             <div className="pt-4 flex items-center justify-end space-x-3 border-t border-slate-200">
@@ -712,6 +646,26 @@ export default function Index({ appointments = [], patients = [], availableBeds 
                                     <option value="no-show">No-Show</option>
                                     <option value="cancelled">Cancelled</option>
                                 </select>
+                            </div>
+
+                            {/* Checkbox Emergency Override */}
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between">
+                                <div>
+                                    <label htmlFor="edit_emergency_override" className="text-xs font-black text-rose-900 cursor-pointer flex items-center gap-1.5">
+                                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                                        <span>Emergency Override (Kasus Darurat Medis)</span>
+                                    </label>
+                                    <p className="text-[11px] text-rose-700 font-medium mt-0.5">
+                                        Prioritaskan pasien sebagai kasus darurat.
+                                    </p>
+                                </div>
+                                <input
+                                    id="edit_emergency_override"
+                                    type="checkbox"
+                                    checked={editForm.data.emergency_override}
+                                    onChange={(e) => editForm.setData('emergency_override', e.target.checked)}
+                                    className="w-5 h-5 text-rose-600 rounded border-rose-300 focus:ring-rose-500 cursor-pointer"
+                                />
                             </div>
 
                             <div className="pt-4 flex items-center justify-end space-x-3 border-t border-slate-200">

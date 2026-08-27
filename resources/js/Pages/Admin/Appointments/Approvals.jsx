@@ -26,7 +26,7 @@ export default function AppointmentApprovalsIndex({ appointments, rescheduleRequ
     // Form for Emergency Override Creation
     const { data: emergencyData, setData: setEmergencyData, post: postEmergency, processing: processingEmergency, reset: resetEmergency } = useForm({
         patient_id: '',
-        appointment_date: new Date().toISOString().split('T')[0],
+        appointment_date: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jakarta' }),
         shift: 'pagi',
         bed_number: 1,
         emergency_reason: '',
