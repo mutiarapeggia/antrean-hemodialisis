@@ -113,7 +113,6 @@ export default function KioskIndex() {
 
         isProcessingRef.current = true;
         playBeep('success');
-        setCameraActive(false);
         setQrInput(cleanToken);
         handleCheckIn(cleanToken);
     };
@@ -134,8 +133,10 @@ export default function KioskIndex() {
 
             console.log('[SCANNER DEBUG] Check-in response success:', response.data);
 
+            const isLate = response.data.is_late || response.data.data?.is_late;
             setResult({
                 type: 'success',
+                is_late: isLate,
                 title: response.data.message || 'Check-In Berhasil!',
                 patient_name: response.data.patient_name || response.data.data?.patient_name,
                 rm_number: response.data.medical_record_number || response.data.data?.rm_number,
@@ -152,13 +153,11 @@ export default function KioskIndex() {
                 const data = error.response.data;
                 if (error.response.status === 422) {
                     setResult({
-                        type: 'late',
-                        title: data.message || 'Terlambat (>15 Menit) - Dinyatakan No-Show',
+                        type: 'error',
+                        title: data.message || 'Shift telah berakhir. Silakan hubungi petugas medis.',
                         patient_name: data.patient_name || data.data?.patient_name,
                         rm_number: data.medical_record_number || data.data?.rm_number,
                         shift: data.shift || data.data?.shift,
-                        arrival_time: data.arrival_time || data.data?.arrival_time,
-                        cutoff_time: data.cutoff_time || data.data?.cutoff_time,
                     });
                 } else if (data.status === 'already_checked_in') {
                     setResult({
@@ -167,6 +166,7 @@ export default function KioskIndex() {
                         patient_name: data.patient_name || data.data?.patient_name,
                         rm_number: data.medical_record_number || data.data?.rm_number,
                         shift: data.shift || data.data?.shift,
+                        bed_number: data.bed_number || data.data?.bed_number,
                     });
                 } else if (data.status === 'reschedule_pending') {
                     setResult({
@@ -261,6 +261,18 @@ export default function KioskIndex() {
                             {result.shift && (
                                 <p className="text-xs font-bold text-slate-700 mt-1">Shift {result.shift} • {result.bed_number}</p>
                             )}
+                            {result.is_late !== undefined && (
+                                <div className="mt-3 flex justify-center">
+                                    <span className={`inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-black uppercase ${
+                                        result.is_late 
+                                            ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                    }`}>
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span>{result.is_late ? 'Check-in Terlambat' : 'Tepat Waktu'}</span>
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="pt-2">
@@ -286,6 +298,7 @@ export default function KioskIndex() {
                         <div className="max-w-xs md:max-w-sm w-full mx-auto">
                             <ScannerCard 
                                 cameraActive={cameraActive}
+                                isProcessing={loading}
                                 scanMessage={scanMessage}
                                 onToggleCamera={() => setCameraActive(!cameraActive)}
                                 onDetected={handleDetectedCode}

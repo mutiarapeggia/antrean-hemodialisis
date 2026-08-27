@@ -14,19 +14,57 @@ export default function ScannerCard({
     const [cameraReady, setCameraReady] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const lastScanRef = useRef({ text: '', time: 0 });
+    const isProcessingRef = useRef(isProcessing);
     const streamRef = useRef(null);
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+        isProcessingRef.current = isProcessing;
+    }, [isProcessing]);
+
+    /**
+     * Complete and safe cleanup of camera stream hardware resources
+     */
+    const stopMediaStream = () => {
+        if (streamRef.current) {
+            try {
+                streamRef.current.getTracks().forEach(track => {
+                    track.enabled = false;
+                    track.stop();
+                });
+            } catch (e) {
+                console.warn('[CAMERA CLEANUP WARN]:', e);
+            }
+            streamRef.current = null;
+        }
+
+        if (videoRef.current) {
+            try {
+                if (videoRef.current.srcObject) {
+                    const tracks = videoRef.current.srcObject.getTracks ? videoRef.current.srcObject.getTracks() : [];
+                    tracks.forEach(track => {
+                        track.enabled = false;
+                        track.stop();
+                    });
+                }
+            } catch (e) {}
+            videoRef.current.srcObject = null;
+        }
+    };
 
     const startLaptopCamera = async () => {
+        if (!isMountedRef.current) return;
         setCameraReady(false);
         setErrorMsg('');
 
-        try {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
-                streamRef.current = null;
-            }
+        // Ensure previous media stream hardware lock is released
+        stopMediaStream();
 
-            // Direct getUserMedia for built-in laptop webcam with fallback
+        // 150ms delay to allow browser and OS video driver to release hardware lock
+        await new Promise(resolve => setTimeout(resolve, 150));
+        if (!isMountedRef.current) return;
+
+        try {
             let mediaStream;
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -38,7 +76,15 @@ export default function ScannerCard({
                 });
             } catch (firstErr) {
                 console.warn('[CAMERA WARN] Ideal resolution constraint failed, falling back to default video:', firstErr);
+                if (!isMountedRef.current) return;
                 mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+
+            if (!isMountedRef.current) {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(t => { t.enabled = false; t.stop(); });
+                }
+                return;
             }
 
             streamRef.current = mediaStream;
@@ -53,15 +99,20 @@ export default function ScannerCard({
                     console.warn('[CAMERA WARN] Video play interrupted:', playErr);
                 }
 
-                setCameraReady(true);
+                if (isMountedRef.current) {
+                    setCameraReady(true);
+                }
             }
         } catch (err) {
             console.error('[LAPTOP CAMERA ERROR]:', err);
+            if (!isMountedRef.current) return;
             setCameraReady(false);
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 setErrorMsg('Izin kamera ditolak oleh browser. Klik ikon gembok di URL bar peramban lalu izinkan Kamera (Allow).');
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 setErrorMsg('Kamera laptop tidak ditemukan atau sedang digunakan oleh aplikasi lain (Zoom/Teams).');
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                setErrorMsg('Kamera sedang diakses oleh proses lain atau belum dilepas oleh sistem. Silakan coba buka kamera kembali.');
             } else {
                 setErrorMsg(`Gagal membuka kamera laptop: ${err.message || 'Izin tidak diberikan.'}`);
             }
@@ -69,20 +120,17 @@ export default function ScannerCard({
     };
 
     useEffect(() => {
+        isMountedRef.current = true;
+
         if (!cameraActive) {
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
-                streamRef.current = null;
-            }
+            stopMediaStream();
             setCameraReady(false);
             return;
         }
 
-        let isMounted = true;
         let animFrameId = null;
+        let startTimerId = null;
         const codeReader = new BrowserQRCodeReader();
-
-        startLaptopCamera();
 
         // Native BarcodeDetector (GPU Instant)
         const hasNativeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
@@ -102,10 +150,10 @@ export default function ScannerCard({
         let lastScanTime = 0;
 
         const scanLoop = async () => {
-            if (!isMounted) return;
+            if (!isMountedRef.current) return;
 
             const now = Date.now();
-            if (now - lastScanTime >= 100 && videoRef.current && videoRef.current.readyState >= 2 && !isProcessing) {
+            if (now - lastScanTime >= 100 && videoRef.current && videoRef.current.readyState >= 2 && !isProcessingRef.current) {
                 lastScanTime = now;
                 
                 try {
@@ -203,35 +251,44 @@ export default function ScannerCard({
                 }
             }
 
-            if (isMounted) {
+            if (isMountedRef.current) {
                 animFrameId = requestAnimationFrame(scanLoop);
             }
         };
 
-        animFrameId = requestAnimationFrame(scanLoop);
-
-        return () => {
-            isMounted = false;
-            if (animFrameId) cancelAnimationFrame(animFrameId);
-            if (streamRef.current) {
-                streamRef.current.getTracks().forEach(t => t.stop());
-                streamRef.current = null;
-            }
-            if (videoRef.current) {
-                videoRef.current.srcObject = null;
+        const initScanner = async () => {
+            await startLaptopCamera();
+            if (isMountedRef.current) {
+                animFrameId = requestAnimationFrame(scanLoop);
             }
         };
-    }, [cameraActive, isProcessing]);
+
+        startTimerId = setTimeout(() => {
+            if (isMountedRef.current) {
+                initScanner();
+            }
+        }, 150);
+
+        return () => {
+            isMountedRef.current = false;
+            if (startTimerId) clearTimeout(startTimerId);
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            stopMediaStream();
+            setCameraReady(false);
+        };
+    }, [cameraActive]);
 
     return (
         <div className="relative w-full aspect-square max-w-[420px] mx-auto bg-slate-950 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-2xl flex flex-col items-center justify-center">
             {/* Native Unmirrored Video Feed for True QR Matrix Reading */}
             <video
                 ref={videoRef}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${cameraReady ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 pointer-events-none select-none ${cameraReady ? 'opacity-100' : 'opacity-0'}`}
                 autoPlay
                 playsInline
                 muted
+                controls={false}
+                disablePictureInPicture
             />
 
             {/* Viewfinder Bounding Box Overlay */}

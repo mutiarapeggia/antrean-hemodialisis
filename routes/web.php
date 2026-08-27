@@ -63,6 +63,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/queue', [AdminQueueController::class, 'index'])->name('queue.index');
     Route::post('/queue/{appointment}/mark-arrived', [AdminQueueController::class, 'markArrived'])->name('queue.mark-arrived');
     Route::post('/queue/{appointment}/trigger-noshow', [AdminQueueController::class, 'triggerNoShow'])->name('queue.trigger-noshow');
+    Route::post('/queue/{appointment}/start-treatment', [AdminQueueController::class, 'startTreatment'])->name('queue.start-treatment');
+    Route::post('/queue/{appointment}/complete-treatment', [AdminQueueController::class, 'completeTreatment'])->name('queue.complete-treatment');
+    Route::post('/queue/{appointment}/restore-noshow', [AdminQueueController::class, 'restoreNoShow'])->name('queue.restore-noshow');
 
     // Patient Management
     Route::get('/patients/export-csv', [PatientController::class, 'exportCsv'])->name('patients.export');

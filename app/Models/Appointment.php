@@ -97,4 +97,88 @@ class Appointment extends Model
     {
         return $this->hasOne(RescheduleRequest::class)->latestOfMany();
     }
+
+    /**
+     * Auto-relocate any existing regular patient occupying target bed to an available free bed when emergency override occurs.
+     */
+    public static function relocateRegularPatientIfOccupied(string $dateStr, string $shift, string $targetBed, int $excludeAppointmentId = 0): ?string
+    {
+        $targetBedStr = trim(str_replace('Bed', '', $targetBed));
+
+        // Find active non-cancelled, non-emergency regular appointment occupying $targetBed
+        $existingApp = self::with(['patient.user'])
+            ->whereDate('appointment_date', $dateStr)
+            ->where('shift', $shift)
+            ->where(function ($q) use ($targetBedStr) {
+                $q->where('bed_number', $targetBedStr)
+                  ->orWhere('bed_number', "Bed {$targetBedStr}");
+            })
+            ->whereIn('status', [
+                self::STATUS_SCHEDULED,
+                self::STATUS_CHECKED_IN,
+                self::STATUS_IN_PROGRESS,
+            ])
+            ->where('id', '!=', $excludeAppointmentId)
+            ->where(function ($q) {
+                $q->where('emergency_override', false)
+                  ->orWhereNull('emergency_override');
+            })
+            ->first();
+
+        if (!$existingApp) {
+            return null; // No regular patient to relocate
+        }
+
+        // Get all occupied bed numbers for this date and shift
+        $occupiedBeds = self::whereDate('appointment_date', $dateStr)
+            ->where('shift', $shift)
+            ->whereIn('status', [
+                self::STATUS_SCHEDULED,
+                self::STATUS_CHECKED_IN,
+                self::STATUS_IN_PROGRESS,
+            ])
+            ->pluck('bed_number')
+            ->map(fn($b) => trim(str_replace('Bed', '', $b)))
+            ->toArray();
+
+        // Find first free bed from 1 to 10
+        $freeBed = null;
+        for ($b = 1; $b <= 10; $b++) {
+            $bedStr = (string) $b;
+            if (!in_array($bedStr, $occupiedBeds)) {
+                $freeBed = $bedStr;
+                break;
+            }
+        }
+
+        if ($freeBed) {
+            $oldBed = $existingApp->bed_number;
+
+            $newQrToken = self::generateHmacQrToken(
+                $existingApp->patient_id,
+                $dateStr,
+                $shift,
+                $freeBed
+            );
+
+            $existingApp->update([
+                'bed_number' => $freeBed,
+                'qr_token' => $newQrToken,
+            ]);
+
+            $patientName = $existingApp->patient->user->name ?? 'Pasien Reguler';
+
+            AuditLog::create([
+                'user_id' => auth()->id() ?? $existingApp->admin_id,
+                'action' => 'EMERGENCY_OVERRIDE_RELOCATED',
+                'description' => "Relokasi Otomatis: Pasien reguler {$patientName} dipindahkan dari Bed #{$oldBed} ke Bed #{$freeBed} karena alokasi darurat medis.",
+                'ip_address' => request()->ip() ?? '127.0.0.1',
+                'created_at' => now(),
+            ]);
+
+            return $freeBed;
+        }
+
+        return null;
+    }
 }

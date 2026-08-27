@@ -182,4 +182,32 @@ class Sprint5QueueAndManagementTest extends TestCase
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page->component('Patient/Announcements/Index'));
     }
+
+    public function test_admin_can_start_and_complete_treatment_and_restore_noshow(): void
+    {
+        // 1. Mark Arrived
+        $this->actingAs($this->admin)->post(route('admin.queue.mark-arrived', $this->app1->id));
+        $this->assertDatabaseHas('appointments', ['id' => $this->app1->id, 'status' => Appointment::STATUS_CHECKED_IN]);
+
+        // 2. Start Treatment (Mulai Tindakan)
+        $startRes = $this->actingAs($this->admin)->post(route('admin.queue.start-treatment', $this->app1->id));
+        $startRes->assertRedirect();
+        $this->assertDatabaseHas('appointments', ['id' => $this->app1->id, 'status' => Appointment::STATUS_IN_PROGRESS]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'TINDAKAN_DIMULAI']);
+
+        // 3. Complete Treatment (Selesaikan Tindakan)
+        $completeRes = $this->actingAs($this->admin)->post(route('admin.queue.complete-treatment', $this->app1->id));
+        $completeRes->assertRedirect();
+        $this->assertDatabaseHas('appointments', ['id' => $this->app1->id, 'status' => Appointment::STATUS_COMPLETED]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'TINDAKAN_SELESAI']);
+
+        // 4. Trigger No-Show on app2 & Restore No-Show
+        $this->actingAs($this->admin)->post(route('admin.queue.trigger-noshow', $this->app2->id));
+        $this->assertDatabaseHas('appointments', ['id' => $this->app2->id, 'status' => Appointment::STATUS_NO_SHOW]);
+
+        $restoreRes = $this->actingAs($this->admin)->post(route('admin.queue.restore-noshow', $this->app2->id));
+        $restoreRes->assertRedirect();
+        $this->assertDatabaseHas('appointments', ['id' => $this->app2->id, 'status' => Appointment::STATUS_CHECKED_IN]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'NO_SHOW_PULIHKAN']);
+    }
 }

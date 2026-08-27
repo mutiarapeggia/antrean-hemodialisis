@@ -22,15 +22,24 @@ class AppointmentController extends Controller
         $selectedStatus = $request->input('status');
         $search = $request->input('search');
 
-        $query = Appointment::with(['patient.user', 'admin'])
-            ->whereDate('appointment_date', $selectedDate);
+        $query = Appointment::with(['patient.user', 'admin']);
+
+        if ($selectedDate) {
+            $query->whereDate('appointment_date', $selectedDate);
+        }
 
         if ($selectedShift) {
             $query->where('shift', $selectedShift);
         }
 
         if ($selectedStatus) {
-            $query->where('status', $selectedStatus);
+            if ($selectedStatus === 'checked-in') {
+                $query->whereIn('status', [Appointment::STATUS_CHECKED_IN, 'arrived']);
+            } elseif ($selectedStatus === 'in-progress') {
+                $query->whereIn('status', [Appointment::STATUS_IN_PROGRESS, 'in_progress']);
+            } else {
+                $query->where('status', $selectedStatus);
+            }
         }
 
         if ($search) {
@@ -44,8 +53,8 @@ class AppointmentController extends Controller
 
         $appointments = $query->orderBy('start_time', 'asc')->get();
 
-        // Get Shift Grid Data for Bed 1 to Bed 10
-        $shiftGrid = $this->buildShiftGrid($selectedDate);
+        // Get Shift Grid Data for Bed 1 to Bed 10 according to current filters
+        $shiftGrid = $this->buildShiftGrid($selectedDate, $selectedShift, $selectedStatus, $search);
 
         $patients = Patient::with('user')
             ->where('is_active', true)
@@ -69,9 +78,9 @@ class AppointmentController extends Controller
             'stats' => $stats,
             'filters' => [
                 'date' => $selectedDate,
-                'shift' => $selectedShift,
-                'status' => $selectedStatus,
-                'search' => $search,
+                'shift' => $selectedShift ?? '',
+                'status' => $selectedStatus ?? '',
+                'search' => $search ?? '',
             ],
         ]);
     }
@@ -132,6 +141,14 @@ class AppointmentController extends Controller
                         continue;
                     }
                 }
+            }
+
+            if ($isEmergency && $bedNumber) {
+                Appointment::relocateRegularPatientIfOccupied(
+                    $currentDate,
+                    $validated['shift'],
+                    $bedNumber
+                );
             }
 
             $qrToken = Appointment::generateHmacQrToken(
@@ -246,13 +263,38 @@ class AppointmentController extends Controller
         return back()->with('success', 'Janji temu berhasil dihapus.');
     }
 
-    private function buildShiftGrid(string $date): array
+    private function buildShiftGrid(string $date, ?string $selectedShift = null, ?string $selectedStatus = null, ?string $search = null): array
     {
         $beds = range(1, 10);
-        $appointments = Appointment::with(['patient.user'])
-            ->whereDate('appointment_date', $date)
-            ->where('status', '!=', Appointment::STATUS_CANCELLED)
-            ->get();
+        $query = Appointment::with(['patient.user'])
+            ->whereDate('appointment_date', $date);
+
+        if ($selectedShift) {
+            $query->where('shift', $selectedShift);
+        }
+
+        if ($selectedStatus) {
+            if ($selectedStatus === 'checked-in') {
+                $query->whereIn('status', [Appointment::STATUS_CHECKED_IN, 'arrived']);
+            } elseif ($selectedStatus === 'in-progress') {
+                $query->whereIn('status', [Appointment::STATUS_IN_PROGRESS, 'in_progress']);
+            } else {
+                $query->where('status', $selectedStatus);
+            }
+        } else {
+            $query->where('status', '!=', Appointment::STATUS_CANCELLED);
+        }
+
+        if ($search) {
+            $query->whereHas('patient', function ($q) use ($search) {
+                $q->where('medical_record_number', 'like', "%{$search}%")
+                  ->orWhereHas('user', function ($uq) use ($search) {
+                      $uq->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $appointments = $query->orderBy('emergency_override', 'desc')->get();
 
         $grid = [
             'pagi' => [],

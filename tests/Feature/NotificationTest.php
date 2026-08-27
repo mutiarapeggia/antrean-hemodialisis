@@ -100,6 +100,7 @@ class NotificationTest extends TestCase
 
         $response = $this->postJson(route('api.check-in.web'), [
             'qr_token' => $token,
+            'simulated_at' => "{$todayStr} 07:05:00",
         ]);
 
         $response->assertStatus(200);

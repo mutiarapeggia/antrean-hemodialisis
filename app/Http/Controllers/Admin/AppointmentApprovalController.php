@@ -106,8 +106,17 @@ class AppointmentApprovalController extends Controller
             }
         }
 
-        DB::transaction(function () use ($appointment, $bedNumber, $emergencyOverride) {
+        DB::transaction(function () use ($appointment, $bedNumber, $emergencyOverride, $dateStr) {
             $lockedAppointment = Appointment::where('id', $appointment->id)->lockForUpdate()->first();
+
+            if ($emergencyOverride) {
+                Appointment::relocateRegularPatientIfOccupied(
+                    $dateStr,
+                    $lockedAppointment->shift,
+                    $bedNumber,
+                    $lockedAppointment->id
+                );
+            }
 
             $qrToken = Appointment::generateHmacQrToken(
                 $lockedAppointment->patient_id,
@@ -182,6 +191,12 @@ class AppointmentApprovalController extends Controller
         $bedNumber = trim($request->bed_number);
 
         DB::transaction(function () use ($request, $times, $bedNumber) {
+            Appointment::relocateRegularPatientIfOccupied(
+                $request->appointment_date,
+                $request->shift,
+                $bedNumber
+            );
+
             $qrToken = Appointment::generateHmacQrToken(
                 $request->patient_id,
                 $request->appointment_date,

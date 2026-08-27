@@ -178,7 +178,18 @@ class AppointmentTest extends TestCase
         $response->assertSessionHas('success');
         $this->assertDatabaseHas('appointments', [
             'patient_id' => $emergencyPatient->id,
+            'bed_number' => '4',
             'emergency_override' => true,
+        ]);
+
+        // Regular patient is automatically relocated from Bed 4 to free Bed 1
+        $this->assertDatabaseHas('appointments', [
+            'patient_id' => $this->patient->id,
+            'bed_number' => '1',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'EMERGENCY_OVERRIDE_RELOCATED',
         ]);
     }
 
@@ -266,5 +277,58 @@ class AppointmentTest extends TestCase
         $this->assertEquals('pending_approval', $app->status);
         $this->assertEquals('pending_approval', $app->approval_status);
         $this->assertFalse((bool) $app->is_recurring);
+    }
+
+    public function test_admin_appointments_index_filters_by_shift_and_status(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // Create Pagi Scheduled
+        Appointment::create([
+            'patient_id' => $this->patient->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '1',
+            'status' => 'scheduled',
+            'qr_token' => 'token_pagi_scheduled',
+        ]);
+
+        // Create Siang Checked-in
+        Appointment::create([
+            'patient_id' => $this->patient->id,
+            'appointment_date' => $today,
+            'start_time' => '12:00:00',
+            'end_time' => '16:00:00',
+            'shift' => 'siang',
+            'bed_number' => '2',
+            'status' => 'checked-in',
+            'qr_token' => 'token_siang_checkedin',
+        ]);
+
+        // Filter Shift Pagi
+        $responsePagi = $this->actingAs($this->admin)->get(route('admin.appointments.index', [
+            'date' => $today,
+            'shift' => 'pagi',
+        ]));
+        $responsePagi->assertStatus(200);
+        $responsePagi->assertInertia(fn ($page) => $page
+            ->component('Admin/Appointments/Index')
+            ->has('appointments', 1)
+            ->where('filters.shift', 'pagi')
+        );
+
+        // Filter Status checked-in
+        $responseCheckedIn = $this->actingAs($this->admin)->get(route('admin.appointments.index', [
+            'date' => $today,
+            'status' => 'checked-in',
+        ]));
+        $responseCheckedIn->assertStatus(200);
+        $responseCheckedIn->assertInertia(fn ($page) => $page
+            ->component('Admin/Appointments/Index')
+            ->has('appointments', 1)
+            ->where('filters.status', 'checked-in')
+        );
     }
 }

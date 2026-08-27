@@ -26,7 +26,24 @@ class AppointmentController extends Controller
             ->orderBy('start_time', 'asc')
             ->get()
             ->map(function ($app) use ($patient) {
-                $app->qr_svg = QrCodeService::generateDataUri($app->qr_token ?? $patient->medical_record_number);
+                if (empty($app->qr_token)) {
+                    $app->qr_token = Appointment::generateHmacQrToken(
+                        $app->patient_id,
+                        $app->appointment_date->toDateString(),
+                        $app->shift,
+                        $app->bed_number
+                    );
+                    $app->save();
+                }
+
+                $payload = json_encode([
+                    'appointment_id' => $app->id,
+                    'qr_token' => $app->qr_token,
+                    'medical_record_number' => $patient->medical_record_number,
+                ]);
+
+                $app->qr_payload = $payload;
+                $app->qr_svg = QrCodeService::generateDataUri($payload);
                 return $app;
             });
 

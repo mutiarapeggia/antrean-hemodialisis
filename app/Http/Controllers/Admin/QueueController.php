@@ -95,14 +95,14 @@ class QueueController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Summary Statistics for today
+        // Summary Statistics for today with alias status support
         $stats = [
             'total' => Appointment::whereDate('appointment_date', $selectedDate)->count(),
-            'scheduled' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_SCHEDULED)->count(),
-            'checked_in' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_CHECKED_IN)->count(),
-            'in_progress' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_IN_PROGRESS)->count(),
+            'scheduled' => Appointment::whereDate('appointment_date', $selectedDate)->whereIn('status', [Appointment::STATUS_SCHEDULED, 'confirmed', 'approved', 'pending_approval', 'pending'])->count(),
+            'checked_in' => Appointment::whereDate('appointment_date', $selectedDate)->whereIn('status', [Appointment::STATUS_CHECKED_IN, 'arrived'])->count(),
+            'in_progress' => Appointment::whereDate('appointment_date', $selectedDate)->whereIn('status', [Appointment::STATUS_IN_PROGRESS, 'in_progress'])->count(),
             'completed' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_COMPLETED)->count(),
-            'no_show' => Appointment::whereDate('appointment_date', $selectedDate)->where('status', Appointment::STATUS_NO_SHOW)->count(),
+            'no_show' => Appointment::whereDate('appointment_date', $selectedDate)->whereIn('status', [Appointment::STATUS_NO_SHOW, 'no_show'])->count(),
         ];
 
         return Inertia::render('Admin/Queue/Index', [
@@ -218,5 +218,81 @@ class QueueController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Admin action - Start treatment / Mulai Tindakan
+     */
+    public function startTreatment(Request $request, Appointment $appointment): RedirectResponse
+    {
+        DB::transaction(function () use ($appointment, $request) {
+            $appointment->update([
+                'status' => Appointment::STATUS_IN_PROGRESS,
+            ]);
+
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'TINDAKAN_DIMULAI',
+                'description' => "Admin memulai tindakan hemodialisis untuk pasien {$appointment->patient->user->name} (Bed #{$appointment->bed_number}, Shift {$appointment->shift}).",
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', "Tindakan hemodialisis untuk pasien {$appointment->patient->user->name} berhasil dimulai.");
+    }
+
+    /**
+     * Admin action - Complete treatment / Selesaikan Tindakan
+     */
+    public function completeTreatment(Request $request, Appointment $appointment): RedirectResponse
+    {
+        DB::transaction(function () use ($appointment, $request) {
+            $appointment->update([
+                'status' => Appointment::STATUS_COMPLETED,
+            ]);
+
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'TINDAKAN_SELESAI',
+                'description' => "Admin menyelesaikan tindakan hemodialisis untuk pasien {$appointment->patient->user->name} (Bed #{$appointment->bed_number}, Shift {$appointment->shift}). Slot Bed telah dilepas.",
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', "Tindakan hemodialisis untuk pasien {$appointment->patient->user->name} telah selesai.");
+    }
+
+    /**
+     * Admin action - Restore No-Show / Pulihkan pasien ke Checked-In
+     */
+    public function restoreNoShow(Request $request, Appointment $appointment): RedirectResponse
+    {
+        DB::transaction(function () use ($appointment, $request) {
+            $appointment->update([
+                'status' => Appointment::STATUS_CHECKED_IN,
+                'cancellation_reason' => null,
+            ]);
+
+            CheckIn::updateOrCreate(
+                ['appointment_id' => $appointment->id],
+                [
+                    'check_in_time' => now(),
+                    'status' => 'late',
+                    'source' => 'manual-restore-admin',
+                ]
+            );
+
+            AuditLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'NO_SHOW_PULIHKAN',
+                'description' => "Admin memulihkan status No-Show pasien {$appointment->patient->user->name} menjadi Checked-In (Bed #{$appointment->bed_number}, Shift {$appointment->shift}).",
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return back()->with('success', "Status No-Show pasien {$appointment->patient->user->name} berhasil dipulihkan menjadi Checked-In.");
     }
 }
