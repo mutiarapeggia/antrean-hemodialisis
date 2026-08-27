@@ -22,6 +22,25 @@ export default function Index({ appointments, patient, availableBeds = [] }) {
     const [cancellingApp, setCancellingApp] = useState(null);
     const [rescheduleApp, setRescheduleApp] = useState(null);
 
+    const isQrAllowed = (app) => {
+        if (!app) return false;
+
+        // 1. Initial pending approval check
+        if (app.status === 'pending_approval' || app.status === 'pending' || app.approval_status === 'pending_approval') {
+            return false;
+        }
+
+        // 2. Pending reschedule request check
+        const latestReschedule = app.latest_reschedule_request || app.latestRescheduleRequest;
+        if (latestReschedule && latestReschedule.status === 'pending') {
+            return false;
+        }
+
+        // 3. Status must be scheduled, approved, checked-in, in-progress, or completed
+        const allowedStatuses = ['scheduled', 'approved', 'checked-in', 'in-progress', 'completed'];
+        return allowedStatuses.includes(app.status) || app.approval_status === 'approved';
+    };
+
     const todayStr = new Date().toISOString().split('T')[0];
     const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 
@@ -191,26 +210,26 @@ export default function Index({ appointments, patient, availableBeds = [] }) {
                                         <div className="flex items-center gap-2 flex-wrap">
                                             {(app.approval_status === 'pending_approval' || app.status === 'pending') ? (
                                                 <span className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
-                                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                                    <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
                                                     <span>Menunggu Persetujuan Admin</span>
                                                 </span>
-                                            ) : (app.status === 'scheduled' || app.status === 'approved' || app.approval_status === 'approved' || app.status === 'checked-in') ? (
+                                            ) : hasPendingReschedule ? (
+                                                <span className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                                                    <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                                                    <span>Pengajuan Jadwal Ulang Sedang Ditinjau Admin</span>
+                                                </span>
+                                            ) : isQrAllowed(app) ? (
                                                 <button
                                                     onClick={() => setViewingQr(app)}
                                                     className="inline-flex items-center space-x-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-xl border border-blue-200 transition-colors"
                                                 >
                                                     <QrCode className="w-4 h-4 text-blue-600" />
-                                                    <span>Kode QR</span>
+                                                    <span>Kode QR Tiket</span>
                                                 </button>
                                             ) : null}
 
                                             {isScheduled && (
-                                                hasPendingReschedule ? (
-                                                    <span className="bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs">
-                                                        <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-                                                        <span>Reschedule Pending</span>
-                                                    </span>
-                                                ) : (
+                                                hasPendingReschedule ? null : (
                                                     <button
                                                         onClick={() => openRescheduleModal(app)}
                                                         className="bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
@@ -402,7 +421,7 @@ export default function Index({ appointments, patient, availableBeds = [] }) {
             )}
 
             {/* MODAL QR CODE VIEW */}
-            {viewingQr && (
+            {viewingQr && isQrAllowed(viewingQr) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
                     <div className="bg-white border border-slate-200 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center relative">
                         <button onClick={() => setViewingQr(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">

@@ -168,6 +168,13 @@ export default function KioskIndex() {
                         rm_number: data.medical_record_number || data.data?.rm_number,
                         shift: data.shift || data.data?.shift,
                     });
+                } else if (data.status === 'reschedule_pending') {
+                    setResult({
+                        type: 'warning',
+                        title: data.message || 'Check-in ditolak: Janji temu ini sedang dalam proses permohonan jadwal ulang',
+                        patient_name: data.patient_name || data.data?.patient_name,
+                        rm_number: data.medical_record_number || data.data?.rm_number,
+                    });
                 } else {
                     setResult({
                         type: 'error',

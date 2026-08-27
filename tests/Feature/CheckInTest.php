@@ -338,4 +338,44 @@ class CheckInTest extends TestCase
             'status' => 'already_checked_in',
         ]);
     }
+
+    public function test_check_in_rejected_when_reschedule_is_pending(): void
+    {
+        $today = now()->format('Y-m-d');
+        $shift = 'pagi';
+        $bed = '1';
+
+        $token = Appointment::generateHmacQrToken($this->patient1->id, $today, $shift, $bed);
+
+        $appointment = Appointment::create([
+            'patient_id' => $this->patient1->id,
+            'admin_id' => $this->admin->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => $shift,
+            'bed_number' => $bed,
+            'status' => Appointment::STATUS_SCHEDULED,
+            'qr_token' => $token,
+        ]);
+
+        \App\Models\RescheduleRequest::create([
+            'appointment_id' => $appointment->id,
+            'patient_id' => $this->patient1->id,
+            'requested_date' => now()->addDay()->format('Y-m-d'),
+            'requested_shift' => 'siang',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->postJson('/api/check-in', [
+            'qr_token' => $token,
+            'simulated_at' => "{$today} 07:05:00",
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJson([
+            'status' => 'reschedule_pending',
+            'message' => 'Check-in ditolak: Janji temu ini sedang dalam proses permohonan jadwal ulang',
+        ]);
+    }
 }

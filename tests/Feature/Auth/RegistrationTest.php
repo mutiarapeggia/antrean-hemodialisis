@@ -21,11 +21,18 @@ class RegistrationTest extends TestCase
         $response = $this->post('/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'phone' => '08123456789',
+            'address' => 'Jl. Test No. 1',
+            'medical_conditions' => 'Gagal Ginjal Kronis Stage 5',
             'password' => 'password',
             'password_confirmation' => 'password',
         ]);
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('status', 'Registrasi berhasil, silakan masuk ke akun Anda.');
+
+        $this->assertDatabaseHas('patients', [
+            'medical_conditions' => 'Gagal Ginjal Kronis Stage 5',
+        ]);
     }
 }

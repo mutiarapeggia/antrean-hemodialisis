@@ -1,6 +1,6 @@
 import React from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Activity, UserPlus, ArrowRight, Lock, Mail, User, Phone, MapPin } from 'lucide-react';
+import { Activity, UserPlus, ArrowRight, Lock, Mail, User, Phone, MapPin, FileText } from 'lucide-react';
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -96,6 +96,25 @@ export default function Register() {
                             />
                             <MapPin className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
                         </div>
+                        {errors.address && <p className="text-xs font-bold text-rose-600 mt-1">{errors.address}</p>}
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">
+                            Kondisi Medis / Catatan Medis (Keluhan Awal)
+                            <span className="text-[10px] text-slate-400 font-normal lowercase tracking-normal ml-1.5">(opsional)</span>
+                        </label>
+                        <div className="relative">
+                            <textarea
+                                value={data.medical_conditions}
+                                onChange={(e) => setData('medical_conditions', e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none pl-10 min-h-[84px]"
+                                placeholder="Contoh: Gagal Ginjal Kronis (Dialisis Rutin 2x Seminggu), Hipertensi, Alergi Obat"
+                                rows={3}
+                            />
+                            <FileText className="w-5 h-5 text-slate-400 absolute left-3 top-3" />
+                        </div>
+                        {errors.medical_conditions && <p className="text-xs font-bold text-rose-600 mt-1">{errors.medical_conditions}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

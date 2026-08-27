@@ -193,6 +193,7 @@ class RescheduleTest extends TestCase
         $this->assertEquals('siang', $appointment->shift);
         $this->assertEquals('3', $appointment->bed_number);
         $this->assertEquals('12:00:00', $appointment->start_time);
+        $this->assertNotEquals('HMAC-TOKEN-TEST-ORIGINAL', $appointment->qr_token);
 
         Notification::assertSentTo(
             $this->patientUser,

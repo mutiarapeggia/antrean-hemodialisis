@@ -26,7 +26,7 @@ class AppointmentController extends Controller
             ->orderBy('start_time', 'asc')
             ->get()
             ->map(function ($app) use ($patient) {
-                $app->qr_svg = QrCodeService::generateDataUri($patient->medical_record_number);
+                $app->qr_svg = QrCodeService::generateDataUri($app->qr_token ?? $patient->medical_record_number);
                 return $app;
             });
 

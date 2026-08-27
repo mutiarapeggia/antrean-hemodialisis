@@ -67,6 +67,39 @@ class CheckInController extends Controller
                 })
                 ->first();
 
+            // Check if appointment by token or patient has a pending reschedule request
+            $appByToken = Appointment::with(['patient.user', 'rescheduleRequests'])
+                ->where('qr_token', $rawInput)
+                ->first();
+
+            $pendingRescheduleApp = null;
+            if ($appByToken && $appByToken->rescheduleRequests->contains('status', 'pending')) {
+                $pendingRescheduleApp = $appByToken;
+            } elseif ($patient) {
+                $pendingRescheduleApp = Appointment::where('patient_id', $patient->id)
+                    ->whereHas('rescheduleRequests', function ($q) {
+                        $q->where('status', 'pending');
+                    })
+                    ->first();
+            }
+
+            if ($pendingRescheduleApp) {
+                $patientUser = $pendingRescheduleApp->patient->user ?? null;
+                $patientName = $patientUser ? $patientUser->name : 'Pasien';
+                $rm = $pendingRescheduleApp->patient->medical_record_number ?? '-';
+
+                return response()->json([
+                    'status' => 'reschedule_pending',
+                    'message' => 'Check-in ditolak: Janji temu ini sedang dalam proses permohonan jadwal ulang',
+                    'patient_name' => $patientName,
+                    'medical_record_number' => $rm,
+                    'data' => [
+                        'patient_name' => $patientName,
+                        'rm_number' => $rm,
+                    ],
+                ], 400);
+            }
+
             // 2. Fetch all appointments for today (excluding cancelled) with lockForUpdate
             $todayAppointments = Appointment::with(['patient.user'])
                 ->where(function ($query) use ($patient, $rawInput) {
