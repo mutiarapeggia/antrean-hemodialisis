@@ -296,7 +296,7 @@ class CheckInTest extends TestCase
         ]);
 
         // Process No-Shows via console command
-        $this->artisan('app:process-no-shows')
+        $this->artisan('app:process-no-shows', ['--date' => $today])
             ->assertExitCode(0);
 
         $this->assertDatabaseHas('appointments', [
