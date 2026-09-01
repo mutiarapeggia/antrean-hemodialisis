@@ -27,6 +27,7 @@ class QueueController extends Controller
 
         $appointments = Appointment::with(['patient.user', 'checkIn'])
             ->whereDate('appointment_date', $todayDate)
+            ->orderBy('emergency_override', 'desc')
             ->orderBy('shift', 'asc')
             ->orderBy('bed_number', 'asc')
             ->get();
@@ -66,7 +67,8 @@ class QueueController extends Controller
             $query->where('status', $selectedStatus);
         }
 
-        $appointments = $query->orderBy('shift', 'asc')
+        $appointments = $query->orderBy('emergency_override', 'desc')
+            ->orderBy('shift', 'asc')
             ->orderBy('bed_number', 'asc')
             ->orderBy('start_time', 'asc')
             ->get();
