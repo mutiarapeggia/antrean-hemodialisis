@@ -331,4 +331,62 @@ class AppointmentTest extends TestCase
             ->where('filters.status', 'checked-in')
         );
     }
+
+    public function test_bed_breakdown_auto_relocates_patient_to_available_bed(): void
+    {
+        $today = now()->format('Y-m-d');
+
+        // Create Master Bed 2 (available) and Bed 5 (available)
+        $bed2 = \App\Models\Bed::create([
+            'bed_number' => '2',
+            'label' => 'Bed 2',
+            'status' => 'available',
+        ]);
+        \App\Models\Bed::create([
+            'bed_number' => '5',
+            'label' => 'Bed 5',
+            'status' => 'available',
+        ]);
+
+        // Create appointment on Bed 2
+        $app = Appointment::create([
+            'patient_id' => $this->patient->id,
+            'admin_id' => $this->admin->id,
+            'appointment_date' => $today,
+            'start_time' => '07:00:00',
+            'end_time' => '11:00:00',
+            'shift' => 'pagi',
+            'bed_number' => '2',
+            'status' => 'scheduled',
+            'qr_token' => 'token_bed_2',
+        ]);
+
+        // Admin updates Bed 2 status to 'damaged'
+        $response = $this->actingAs($this->admin)->put(route('admin.beds.update', $bed2->id), [
+            'bed_number' => '2',
+            'label' => 'Bed 2',
+            'status' => 'damaged',
+            'notes' => 'Mesin rusak hidrolik',
+        ]);
+
+        $response->assertSessionHas('success');
+
+        // Verify Bed 2 status in DB is damaged
+        $this->assertDatabaseHas('beds', [
+            'id' => $bed2->id,
+            'status' => 'damaged',
+        ]);
+
+        // Patient appointment is automatically relocated from Bed 2 to free Bed 5
+        $this->assertDatabaseHas('appointments', [
+            'id' => $app->id,
+            'patient_id' => $this->patient->id,
+            'bed_number' => '5',
+        ]);
+
+        // Audit log created for breakdown relocation
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'BED_BREAKDOWN_RELOCATED',
+        ]);
+    }
 }

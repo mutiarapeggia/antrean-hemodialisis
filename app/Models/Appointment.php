@@ -141,18 +141,34 @@ class Appointment extends Model
             ->map(fn($b) => trim(str_replace('Bed', '', $b)))
             ->toArray();
 
-        // Find first free bed from 1 to 10
+        // Get usable master beds from database dynamically if populated, otherwise fallback to 1..10
+        $masterBeds = \App\Models\Bed::all()->sortBy(fn($b) => (int) preg_replace('/\D/', '', $b->bed_number));
+
+        $candidateBeds = [];
+        if ($masterBeds->count() > 0) {
+            foreach ($masterBeds as $mb) {
+                $st = strtolower($mb->status ?? 'available');
+                $isUsable = !in_array($st, ['rusak', 'damaged', 'maintenance', 'perbaikan'], true);
+                if (!$isUsable) continue;
+
+                $bStr = (string) preg_replace('/\D/', '', $mb->bed_number);
+                if (empty($bStr)) $bStr = (string) $mb->bed_number;
+                $candidateBeds[] = $bStr;
+            }
+        } else {
+            $candidateBeds = array_map('strval', range(1, 10));
+        }
+
         $freeBed = null;
-        for ($b = 1; $b <= 10; $b++) {
-            $bedStr = (string) $b;
-            if (!in_array($bedStr, $occupiedBeds)) {
-                $freeBed = $bedStr;
+        foreach ($candidateBeds as $bStr) {
+            if (!in_array($bStr, $occupiedBeds, true)) {
+                $freeBed = $bStr;
                 break;
             }
         }
 
         if ($freeBed) {
-            $oldBed = $existingApp->bed_number;
+            $oldBed = (string) $existingApp->bed_number;
 
             $newQrToken = self::generateHmacQrToken(
                 $existingApp->patient_id,
@@ -176,9 +192,139 @@ class Appointment extends Model
                 'created_at' => now(),
             ]);
 
+            // Dispatch notification to relocated regular patient
+            $displacedApp = $existingApp->fresh(['patient.user']);
+            if ($displacedApp && $displacedApp->patient && $displacedApp->patient->user) {
+                dispatch(function () use ($displacedApp, $oldBed, $freeBed) {
+                    try {
+                        $displacedApp->patient->user->notify(new \App\Notifications\PatientBedRelocatedNotification($displacedApp, $oldBed, $freeBed));
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::warning('[ASYNC NOTIF WARN] Relocation notify failed: ' . $e->getMessage());
+                    }
+                })->afterResponse();
+            }
+
             return $freeBed;
         }
 
         return null;
+    }
+
+    /**
+     * Auto-relocate active appointments from a damaged/maintenance bed to available free beds.
+     * Returns array with relocated_count and unassigned_count.
+     */
+    public static function relocateAppointmentsFromBed(string $rawBedNumber): array
+    {
+        $cleanBedNum = trim(str_replace('Bed', '', $rawBedNumber));
+        $today = now()->format('Y-m-d');
+
+        // Find active non-cancelled appointments for today or future dates on this bed
+        $affectedAppointments = self::with(['patient.user'])
+            ->whereDate('appointment_date', '>=', $today)
+            ->whereIn('status', [
+                self::STATUS_SCHEDULED,
+                self::STATUS_CHECKED_IN,
+                self::STATUS_IN_PROGRESS,
+            ])
+            ->where(function ($q) use ($cleanBedNum) {
+                $q->where('bed_number', $cleanBedNum)
+                  ->orWhere('bed_number', "Bed {$cleanBedNum}");
+            })
+            ->get();
+
+        $relocatedCount = 0;
+        $unassignedCount = 0;
+
+        foreach ($affectedAppointments as $app) {
+            $dateStr = $app->appointment_date ? $app->appointment_date->format('Y-m-d') : $today;
+            $shift = $app->shift;
+
+            // Get occupied beds on this date and shift excluding this appointment
+            $occupiedBeds = self::whereDate('appointment_date', $dateStr)
+                ->where('shift', $shift)
+                ->whereIn('status', [
+                    self::STATUS_SCHEDULED,
+                    self::STATUS_CHECKED_IN,
+                    self::STATUS_IN_PROGRESS,
+                ])
+                ->where('id', '!=', $app->id)
+                ->pluck('bed_number')
+                ->map(fn($b) => trim(str_replace('Bed', '', $b)))
+                ->toArray();
+
+            // Get usable master beds from database dynamically if populated, otherwise fallback to 1..10
+            $masterBeds = \App\Models\Bed::all()->sortBy(fn($b) => (int) preg_replace('/\D/', '', $b->bed_number));
+
+            $candidateBeds = [];
+            if ($masterBeds->count() > 0) {
+                foreach ($masterBeds as $mb) {
+                    $st = strtolower($mb->status ?? 'available');
+                    $isUsable = !in_array($st, ['rusak', 'damaged', 'maintenance', 'perbaikan'], true);
+                    if (!$isUsable) continue;
+
+                    $bStr = (string) preg_replace('/\D/', '', $mb->bed_number);
+                    if (empty($bStr)) $bStr = (string) $mb->bed_number;
+                    $candidateBeds[] = $bStr;
+                }
+            } else {
+                $candidateBeds = array_map('strval', range(1, 10));
+            }
+
+            $freeBed = null;
+            foreach ($candidateBeds as $bStr) {
+                if (!in_array($bStr, $occupiedBeds, true)) {
+                    $freeBed = $bStr;
+                    break;
+                }
+            }
+
+            if ($freeBed) {
+                $oldBed = (string) $app->bed_number;
+
+                $newQrToken = self::generateHmacQrToken(
+                    $app->patient_id,
+                    $dateStr,
+                    $shift,
+                    $freeBed
+                );
+
+                $app->update([
+                    'bed_number' => $freeBed,
+                    'qr_token' => $newQrToken,
+                ]);
+
+                $patientName = $app->patient->user->name ?? 'Pasien';
+
+                AuditLog::create([
+                    'user_id' => auth()->id() ?? $app->admin_id,
+                    'action' => 'BED_BREAKDOWN_RELOCATED',
+                    'description' => "Relokasi Kerusakan/Maintenance: Pasien {$patientName} dipindahkan dari Bed #{$oldBed} ke Bed #{$freeBed} (Tgl: {$dateStr}, Shift: {$shift}).",
+                    'ip_address' => request()->ip() ?? '127.0.0.1',
+                    'created_at' => now(),
+                ]);
+
+                // Dispatch notification to relocated patient
+                $displacedApp = $app->fresh(['patient.user']);
+                if ($displacedApp && $displacedApp->patient && $displacedApp->patient->user) {
+                    dispatch(function () use ($displacedApp, $oldBed, $freeBed) {
+                        try {
+                            $displacedApp->patient->user->notify(new \App\Notifications\PatientBedRelocatedNotification($displacedApp, $oldBed, $freeBed));
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::warning('[ASYNC NOTIF WARN] Bed breakdown relocation notify failed: ' . $e->getMessage());
+                        }
+                    })->afterResponse();
+                }
+
+                $relocatedCount++;
+            } else {
+                $unassignedCount++;
+            }
+        }
+
+        return [
+            'relocated_count' => $relocatedCount,
+            'unassigned_count' => $unassignedCount,
+        ];
     }
 }
